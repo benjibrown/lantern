@@ -15,16 +15,13 @@ class NetworkManager:
         self.ping_ms = None
 
     def connect(self):
-        """Send initial JOIN message"""
         self.sock.sendto(f"[JOIN]|{self.config.USERNAME}".encode(), 
                         (self.config.SERVER_HOST, self.config.SERVER_PORT))
 
     def send_message(self, msg):
-        """Send a message to the server"""
         self.sock.sendto(msg.encode(), (self.config.SERVER_HOST, self.config.SERVER_PORT))
 
     def send_leave(self):
-        """Send LEAVE message"""
         try:
             self.sock.sendto(f"[LEAVE]|{self.config.USERNAME}".encode(), 
                            (self.config.SERVER_HOST, self.config.SERVER_PORT))
@@ -32,12 +29,10 @@ class NetworkManager:
             pass
 
     def request_user_list(self):
-        """Request user list from server"""
         self.sock.sendto(f"[REQ_USERS]|{self.config.USERNAME}".encode(), 
                         (self.config.SERVER_HOST, self.config.SERVER_PORT))
 
     def keepalive(self):
-        """Send periodic ping messages"""
         while self.state.running:
             try:
                 self.last_ping_sent = time.time()
@@ -47,7 +42,6 @@ class NetworkManager:
                 pass
 
     def receive(self):
-        """Receive messages from server"""
         while self.state.running:
             try:
                 data, _ = self.sock.recvfrom(4096)
@@ -79,19 +73,16 @@ class NetworkManager:
                 time.sleep(0.1)
 
     def start_threads(self):
-        """Start receive and keepalive threads"""
         threading.Thread(target=self.receive, daemon=True).start()
         threading.Thread(target=self.keepalive, daemon=True).start()
 
     def close(self):
-        """Close the socket"""
         try:
             self.sock.close()
         except:
             pass
 
     def system_fetch(self):
-        """Get system information"""
         return {
             "OS": f"{platform.system()} {platform.release()}",
             "Kernel": platform.version().split()[0],

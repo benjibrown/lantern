@@ -12,5 +12,4 @@ class ClientState:
         self.running = True
         self.start_time = time.time()
         self.history = ChatHistory(max_messages=max_messages, username=username)        
-        # Load chat history on startup, recalculating is_self based on current username
         self.messages = self.history.load(self.username)

@@ -6,7 +6,7 @@ import argparse
 class Config:
     def __init__(self):
         parser = argparse.ArgumentParser(description="Lantern Chat Client")
-        parser.add_argument("-s", "--server", default="25.ip.gl.ply.gg", help="Server address")
+        parser.add_argument("-s", "--server", default="0.0.0.0", help="Server address")
         parser.add_argument("-p", "--port", type=int, default=6273, help="Server port")
         parser.add_argument("-u", "--username", default=getpass.getuser(), help="Username")
 

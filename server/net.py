@@ -1,7 +1,10 @@
 import socket
 import time
+import threading
 from rich import print
 
+# --- timeout for inactive clients (seconds) ---
+TIMEOUT = 15
 
 class NetworkManager:
     def __init__(self, host, port, state):
@@ -10,6 +13,7 @@ class NetworkManager:
         self.state = state
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind((host, port))
+        self.sock.setblocking(False) # if no data, dont block just continue
 
     def broadcast(self, msg, exclude_addr=None):
 
@@ -73,13 +77,34 @@ class NetworkManager:
         print(f"[purple][>][/purple] {sender}: {msg}")
 
         self.broadcast(msg, exclude_addr=addr)
+    def cleanup_loop(self):
+        while True:
+            time.sleep(5)
+            now = time.time()
+
+            to_remove = []
+
+            for addr, info in list(self.state.clients.items()):
+                if now - info["last_seen"] > TIMEOUT:
+                    to_remove.append((addr, info["username"]))
+
+            for addr, username in to_remove:
+                print(f"[yellow][TIMEOUT][/yellow] {username} removed")
+
+                self.state.clients.pop(addr, None)
+                self.broadcast(f"[{username} left]")
+                self.send_user_list()
+
 
     def run(self):
         print(f"[blue][*][/blue] UDP server listening on {self.host}:{self.port}")
-
+        threading.Thread(target=self.cleanup_loop, daemon=True).start()
         while True:
             try:
-                data, addr = self.sock.recvfrom(4096)
+                try:
+                    data, addr = self.sock.recvfrom(4096)
+                except BlockingIOError:
+                    continue
                 msg = data.decode(errors="ignore").strip()
                 now = time.time()
 

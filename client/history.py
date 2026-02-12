@@ -12,7 +12,7 @@ class ChatHistory:
         self.username = username
 
         safe_username = (username or "default").replace("/", "_").replace("\\", "_")
-        self.history_file = Path(tempfile.gettempdir()) / f"cursorlant_chat_history_{safe_username}.json"
+        self.history_file = Path(tempfile.gettempdir()) / f"lant_chat_history_{safe_username}.json"
     
     def _normalize_sender(self, sender: str | None) -> str | None:
         if not sender:

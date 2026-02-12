@@ -1,4 +1,4 @@
 # Lantern 
-fuck niko
+niko mossad agent
 
 A really niche TUI chat client

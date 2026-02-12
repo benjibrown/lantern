@@ -11,6 +11,7 @@ class UI:
         self.network = network
         self.command_handler = command_handler
         self.input_buf = ""
+        self.scroll_offset = 0
 
     def draw_status_bar(self, stdscr, h, w, y):
 
@@ -59,6 +60,37 @@ class UI:
         win.clear()
         stdscr.touchwin()
         stdscr.refresh()
+
+    def show_keybinds(self, stdscr):
+        h, w = stdscr.getmaxyx()
+        lines = [
+                "Keybinds",
+                "ctrl + h: help menu",
+                "ctrl + q: exit",
+                "double tap esc: exit",
+                "ctrl + /: show keybinds",
+                "ctrl + f: fetch system info",
+                "Press any key to close"
+                ]
+
+        win_h = len(lines) + 2
+        win_w = max(len(l) for l in lines) + 4
+        y = (h - win_h) // 2 
+        x = (w - win_w) // 2 
+
+        win = curses.newwin(win_h, win_w, y, x)
+        win.border()
+
+        for i, line in enumerate(lines, 1):
+            win.addstr(i, 2, line)
+
+        win.refresh()
+        win.getch()
+        win.clear()
+        stdscr.touchwin()
+        stdscr.refresh()
+
+
 
     def confirm_exit(self, stdscr):
         h, w = stdscr.getmaxyx()
@@ -114,7 +146,7 @@ class UI:
 
             user_w = 22
             chat_w = max(10, w - user_w - 1)
-            chat_h = h - 2
+            chat_h = h - 3
 
           
             with self.state.lock:
@@ -136,7 +168,19 @@ class UI:
                 for l in textwrap.wrap(prefix + display_text, chat_w) or [""]:
                     lines.append((l, is_self, text, is_system))
 
-            for i, (line, is_self, original_text, is_system) in enumerate(lines[-chat_h:]):
+            total_lines = len(lines)
+
+            # clamp scroll so it never goes out of bounds
+            max_scroll = max(0, total_lines - chat_h)
+            self.scroll_offset = min(self.scroll_offset, max_scroll)
+
+            start = max(0, total_lines - chat_h - self.scroll_offset)
+            end = total_lines - self.scroll_offset
+
+            visible_lines = lines[start:end]
+
+            for i, (line, is_self, original_text, is_system) in enumerate(visible_lines):
+
                 if is_system:
                     stdscr.addstr(i, 0, line, curses.color_pair(4))
                 elif is_self:
@@ -179,6 +223,8 @@ class UI:
                     time.sleep(0.02)
                     continue
 
+                # ------ key handling ------
+
                 # double tap esc -> exit  
                 if ch == 27:  # ESC key
                     ch2 = stdscr.getch()
@@ -186,6 +232,43 @@ class UI:
                         self.command_handler.shutdown()
                     else:
                         continue
+
+                # ctrl + h for help 
+                if ch in (8, 127) and curses.keyname(ch) == b'^H':
+                    self.show_help(stdscr) 
+                    continue
+                
+
+                # ctrl + / for keybinds  
+                if ch in (31, ord('_')):
+                    self.show_keybinds(stdscr)
+                    continue
+
+                # ctrl + q for exit
+                if ch in (17, ord('q') - ord('a') + 1):
+                    if self.confirm_exit(stdscr):
+                        self.command_handler.shutdown()
+                    continue
+                
+                # ctrl + f for fetch system info 
+                if ch in (6, ord('f') - ord('a') + 1):
+                    if self.command_handler.handle_command("/fetch", stdscr): 
+                        continue
+                
+                # arrow keys to scroll chat 
+                if ch == curses.KEY_UP:
+                    self.scroll_offset += 1
+                    continue
+
+                if ch == curses.KEY_DOWN:
+                    if self.scroll_offset > 0:
+                        self.scroll_offset -= 1
+                    continue
+
+
+                     
+
+
 
                 if ch in (10, 13):
                     msg = self.input_buf.strip()
@@ -204,6 +287,7 @@ class UI:
                         self.state.messages.append((out, True))
                         self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                         self.state.history.save(self.state.messages)
+
 
                 elif ch in (curses.KEY_BACKSPACE, 127, 8):
                     self.input_buf = self.input_buf[:-1]

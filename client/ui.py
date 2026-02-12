@@ -66,7 +66,7 @@ class UI:
         lines = [
                 "Keybinds",
                 "ctrl + h: help menu",
-                "ctrl + q: exit",
+                "ctrl + w: exit",
                 "double tap esc: exit",
                 "ctrl + /: show keybinds",
                 "ctrl + f: fetch system info",
@@ -244,8 +244,8 @@ class UI:
                     self.show_keybinds(stdscr)
                     continue
 
-                # ctrl + q for exit
-                if ch in (17, ord('q') - ord('a') + 1):
+                # ctrl + w for exit 
+                if ch in (23, ord('w') - ord('a') + 1):
                     if self.confirm_exit(stdscr):
                         self.command_handler.shutdown()
                     continue

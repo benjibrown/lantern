@@ -5,6 +5,7 @@ import subprocess
 
 # ------ UI class ------
 # next time im not using curses lmao
+# TODO - make UI nicer, colors, improve menus, dnd color highlighting, icons etc 
 
 class UI:
     def __init__(self, config, state, network, command_handler):
@@ -15,6 +16,7 @@ class UI:
         self.input_buf = ""
         self.scroll_offset = 0
         self.dm_scroll_offset = 0
+
 
     def draw_status_bar(self, stdscr, h, w, y):
         now = time.time()
@@ -32,10 +34,11 @@ class UI:
             dm_target = self.state.dm_target
 
         if view == "dm" and dm_target:
-            status = f" {clock} │ DM: {dm_target[:20]} │ ping: {ping_str} │ /back "
+            status = f" {clock} │ DM: {dm_target[:20]} │ ping: {ping_str} │ dnd {'on' if self.state.dnd else 'off'}  │ /back "
         else:
-            status = f" {clock} │ users: {user_count} │ ping: {ping_str} │ up: {uptime_str} "
+            status = f" {clock} │ users: {user_count} │ ping: {ping_str} │ up: {uptime_str} │ dnd: {'on' if self.state.dnd else 'off'} "
         stdscr.addstr(y, 0, status[: w - 1].ljust(w - 1), curses.A_DIM)
+
 
     def show_help(self, stdscr):
         h, w = stdscr.getmaxyx()
@@ -51,6 +54,7 @@ class UI:
             "/panel   List users, pick one to DM",
             "/fetch   Send system info (30s cooldown)",
             "/dnd     Do not disturb (toggle notifications)",
+            "/back    Go back from DM to main channel",
             "",
             "Press any key to close",
         ]

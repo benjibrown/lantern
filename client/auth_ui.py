@@ -17,7 +17,7 @@ def _send_recv(host: str, port: int, msg: str, timeout=5.0):
 
 def run_auth_ui(stdscr, config):
     # the login/reigster form - this took way too long lol
-    curses.curs_set(1)
+    curses.curs_set(0)
     curses.use_default_colors()
     curses.init_pair(10, curses.COLOR_CYAN, -1)
     curses.init_pair(11, curses.COLOR_GREEN, -1)

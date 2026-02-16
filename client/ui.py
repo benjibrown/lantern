@@ -2,7 +2,7 @@ import curses
 import time
 import textwrap
 import subprocess
-
+import random 
 # ------ UI class ------
 # next time im not using curses lmao
 # TODO - make UI nicer, colors, improve menus, dnd color highlighting, icons etc 
@@ -14,6 +14,7 @@ class UI:
         self.network = network
         self.command_handler = command_handler
         self.input_buf = ""
+        self.input_cursor = 0
         self.scroll_offset = 0
         self.dm_scroll_offset = 0
 
@@ -42,30 +43,129 @@ class UI:
 
     def show_help(self, stdscr):
         h, w = stdscr.getmaxyx()
-        # might add some ascii art here so its not just a boring list of commands lol
-        lines = [
-            "Lantern Help",
-            "",
-            "/exit    Quit chat",
-            "/logout  Log out (next run: login again)",
-            "/help    Show this menu",
-            "/channel  Back to main channel",
-            "/dm <user>  Open DM with user",
-            "/panel   List users, pick one to DM",
-            "/fetch   Send system info (30s cooldown)",
-            "/dnd     Do not disturb (toggle notifications)",
-            "/back    Go back from DM to main channel",
-            "",
-            "Press any key to close",
-        ]
+        if h >= 22 and w >= 70:
+            art1 = [
+                r" _          _                  ",
+                r" | |__ _ _ _| |_ ___ _ _ _ _    ",
+                r" | / _` | ' \  _/ -_) '_| ' \ _ ",
+                r" |_\__,_|_||_\__\___|_| |_||_(_)",
+                r"     lightweight terminal chat   ",
+            ]
+            art2 = [
+                r"▄▄▌   ▄▄▄·  ▐ ▄ ▄▄▄▄▄▄▄▄ .▄▄▄   ▐ ▄    ",
+                r"██•  ▐█ ▀█ •█▌▐█•██  ▀▄.▀·▀▄ █·•█▌▐█   ",
+                r"██▪  ▄█▀▀█ ▐█▐▐▌ ▐█.▪▐▀▀▪▄▐▀▀▄ ▐█▐▐▌   ",
+                r"▐█▌▐▌▐█ ▪▐▌██▐█▌ ▐█▌·▐█▄▄▌▐█•█▌██▐█▌   ",
+                r".▀▀▀  ▀  ▀ ▀▀ █▪ ▀▀▀  ▀▀▀ .▀  ▀▀▀ █▪ ▀",
+                r"     lightweight terminal chat  ",
+            ]
+            art3 = [
+                r" _             _                    ",
+                r"| | ___ ._ _ _| |_ ___  _ _ ._ _    ",
+                r"| |<_> || ' | | | / ._>| '_>| ' | _ ",
+                r"|_|<___||_|_| |_| \___.|_|  |_|_|<_>",
+                r"       lightweight terminal chat      ",
+            ]
+            art4 = [
+                r"  __             __                       ",
+                r" |  .---.-.-----|  |_.-----.----.-----.   ",
+                r" |  |  _  |     |   _|  -__|   _|     |__ ",
+                r" |__|___._|__|__|____|_____|__| |__|__|__|",
+                r"       lightweight terminal chat           ",
+            ]
+            art5 = [
+                r"    __            __                 ",
+                r"   / /___ _____  / /____  _________  ",
+                r"  / / __ `/ __ \/ __/ _ \/ ___/ __ \ ",
+                r" / / /_/ / / / / /_/  __/ /  / / / / ",
+                r"/_/\__,_/_/ /_/\__/\___/_/  /_/ /_(_)",
+                r"       lightweight terminal chat",
+            ]
+            art = random.choice([art1, art2, art3, art4, art5])
+            art_lines = len(art)
+            body = [
+                "Commands:",
+                "  /exit      Quit chat",
+                "  /logout    Log out (next run: login again)",
+                "  /channel   Back to main channel",
+                "  /dm <user> Open DM with user",
+                "  /panel     List users, pick one to DM",
+                "  /fetch     Send system info (30s cooldown)",
+                "  /dnd       Do not disturb (toggle notifications)",
+                "",
+                "Keybinds:",
+                "  Ctrl+H     Help menu",
+                "  Ctrl+/     Show keybinds",
+                "  Ctrl+F     Fetch system info",
+                "  Ctrl+C     Switch to channel view",
+                "  Ctrl+P     Open user panel",
+                "  Ctrl+D     Toggle DND",
+                "  Ctrl+L     Logout",
+                "  Ctrl+W     Exit (with confirm)",
+                "  Esc Esc    Exit (immediate)",
+                "",
+                "Press any key to close",
+            ]
+            lines = art + body
+        else:
+            art_lines = 0
+            lines = [
+                "Lantern Help",
+                "",
+                "/exit    Quit chat",
+                "/logout  Log out (next run: login again)",
+                "/help    Show this menu",
+                "/channel  Back to main channel",
+                "/dm <user>  Open DM with user",
+                "/panel   List users, pick one to DM",
+                "/fetch   Send system info (30s cooldown)",
+                "/dnd     Do not disturb (toggle notifications)",
+                "",
+                "Press any key to close",
+            ]
         win_h = len(lines) + 2
         win_w = min(w - 4, max(len(l) for l in lines) + 4)
         y = (h - win_h) // 2
         x = (w - win_w) // 2
         win = curses.newwin(win_h, win_w, y, x)
         win.border()
+        try:
+            title_attr = curses.color_pair(2) | curses.A_BOLD
+            accent_attr = curses.color_pair(4) | curses.A_BOLD
+            cmd_attr = curses.color_pair(4) | curses.A_BOLD
+        except curses.error:
+            title_attr = curses.A_BOLD
+            accent_attr = curses.A_BOLD
+            cmd_attr = curses.A_BOLD
         for i, line in enumerate(lines, 1):
-            win.addstr(i, 2, line[: win_w - 4])
+            if art_lines and i <= art_lines:
+                # Color the ASCII art header
+                attr = title_attr
+            elif art_lines and i == art_lines + 2:
+                # "Commands:" header
+                attr = accent_attr
+            elif art_lines and i == art_lines + 2 + 10:
+                # "Keybinds:" header (after ~10 body lines)
+                attr = accent_attr
+            elif line.startswith("  /") or line.startswith("  Ctrl"):
+                # Highlight the command/key token in pastel purple
+                try:
+                    if line.startswith("  /") or line.startswith("  Ctrl"):
+                        prefix = "  "
+                        rest_line = line[2:]
+                    else:
+                        prefix = ""
+                        rest_line = line
+                    key, rest = rest_line.split(" ", 1)
+                    win.addstr(i, 2, prefix)
+                    win.addstr(i, 2 + len(prefix), key, cmd_attr)
+                    win.addstr(i, 2 + len(prefix) + len(key) + 1, rest)
+                    continue
+                except ValueError:
+                    attr = curses.A_NORMAL
+            else:
+                attr = curses.A_NORMAL
+            win.addstr(i, 2, line[: win_w - 4], attr)
         win.refresh()
         win.getch()
         win.clear()
@@ -77,11 +177,15 @@ class UI:
         # TODO - add more keybinds to this list cos im adding some new ones later
         lines = [
             "Keybinds",
-            "ctrl + h: help menu",
-            "ctrl + w: exit",
-            "double tap esc: exit",
-            "ctrl + /: show keybinds",
-            "ctrl + f: fetch system info",
+            "ctrl+h   Help menu",
+            "ctrl+/   Show keybinds",
+            "ctrl+f   Fetch system info",
+            "ctrl+c   Switch to channel view",
+            "ctrl+p   Open user panel (DM picker)",
+            "ctrl+d   Toggle Do Not Disturb",
+            "ctrl+l   Logout",
+            "ctrl+w   Exit (with confirm)",
+            "Esc x2   Exit (immediate)",
             "Press any key to close",
         ]
         win_h = len(lines) + 2
@@ -90,8 +194,25 @@ class UI:
         x = (w - win_w) // 2
         win = curses.newwin(win_h, win_w, y, x)
         win.border()
+        try:
+            header_attr = curses.color_pair(2) | curses.A_BOLD
+            key_attr = curses.color_pair(4) | curses.A_BOLD
+        except curses.error:
+            header_attr = curses.A_BOLD
+            key_attr = curses.A_BOLD
         for i, line in enumerate(lines, 1):
-            win.addstr(i, 2, line)
+            if i == 1:
+                attr = header_attr
+            else:
+                # highlight the "ctrl+X" part if present
+                try:
+                    key, rest = line.split(" ", 1)
+                    win.addstr(i, 2, key, key_attr)
+                    win.addstr(i, 2 + len(key) + 1, rest)
+                    continue
+                except ValueError:
+                    attr = curses.A_NORMAL
+            win.addstr(i, 2, line, attr)
         win.refresh()
         win.getch()
         win.clear()
@@ -123,17 +244,29 @@ class UI:
         win.keypad(True)
         win.nodelay(False)
         try:
-            win.addstr(0, 2, " Select user to DM ", curses.A_BOLD)
+            header_attr = curses.color_pair(2) | curses.A_BOLD
+            win.addstr(0, 3, " Select user to DM ", header_attr)
+        except curses.error:
+            pass
+        # Column headers
+        try:
+            win.addstr(1, 2, "User              Status   Last seen", curses.A_DIM)
         except curses.error:
             pass
         sel = 0
         while True:
-            for i, (u, status, ts) in enumerate(ul[: win_h - 3]):
+            for i, (u, status, ts) in enumerate(ul[: win_h - 4]):
                 try:
                     ts_str = time.strftime("%m/%d %H:%M", time.localtime(ts)) if ts else "—"
-                    line = f" {u[:18]:18} {status:8} {ts_str}"
-                    attr = curses.A_REVERSE if i == sel else curses.A_NORMAL
-                    win.addstr(i + 1, 2, line[: win_w - 4], attr)
+                    line = f" {u[:16]:16}  {status:8} {ts_str}"
+                    is_selected = i == sel
+                    if is_selected:
+                        attr = curses.color_pair(1) | curses.A_REVERSE
+                    elif status.lower().startswith("off"):
+                        attr = curses.A_DIM
+                    else:
+                        attr = curses.A_NORMAL
+                    win.addstr(i + 2, 2, line[: win_w - 4], attr)
                 except curses.error:
                     pass
             try:
@@ -200,6 +333,7 @@ class UI:
         stdscr.keypad(True)
         self.input_buf = ""
         self.network.request_user_list()
+        self.input_cursor = 0
 
         while self.state.running:
             stdscr.erase()
@@ -264,14 +398,40 @@ class UI:
             SEP_Y = h - 2
             STATUS_Y = h - 1
             prompt = "> "
-            visible = self.input_buf[-(chat_w - len(prompt) - 1) :]
+            #visible = self.input_buf[-(chat_w - len(prompt) - 1) :] - old code, here until i can test the new scrolling input buffer code
+
+            max_input_width = max(1, chat_w - len(prompt) - 1)
+
+            # Determine which slice of the input buffer to show so that the cursor is visible
+            if len(self.input_buf) <= max_input_width:
+                start_idx = 0
+            else:
+                if self.input_cursor <= max_input_width:
+                    start_idx = 0
+                else:
+                    start_idx = self.input_cursor - max_input_width
+            end_idx = start_idx + max_input_width
+            visible = self.input_buf[start_idx:end_idx]
+
             stdscr.move(INPUT_Y, 0)
             stdscr.clrtoeol()
             stdscr.addstr(INPUT_Y, 0, f"{prompt}{visible}")
+
+            # draw cursor
+            rel_idx = self.input_cursor - start_idx
+            cursor_x = len(prompt) + max(0, rel_idx)
+            cursor_x = max(len(prompt), min(chat_w - 1, cursor_x))
+            try:
+                cursor_attr = curses.color_pair(4) | curses.A_BOLD
+            except curses.error:
+                cursor_attr = curses.A_BOLD
+            try:
+                stdscr.addstr(INPUT_Y, cursor_x, "|", cursor_attr)
+            except curses.error:
+                pass
             stdscr.hline(SEP_Y, 0, curses.ACS_HLINE, w)
             self.draw_status_bar(stdscr, h, w, y=STATUS_Y)
             stdscr.refresh()
-
             try:
                 ch = stdscr.getch()
                 if ch == -1:
@@ -298,6 +458,12 @@ class UI:
                 if ch in (6, ord("f") - ord("a") + 1):
                     if self.command_handler.handle_command("/fetch", stdscr):
                         continue
+                if ch == (ord("p") - ord("a") + 1):
+                    if self.command_handler.handle_command("/panel", stdscr):
+                        continue
+                if ch == (ord("d") - ord("a") + 1):
+                    if self.command_handler.handle_command("/dnd", stdscr):
+                        continue
 
                 
                 scroll_off = self.dm_scroll_offset if (view == "dm" and dm_target) else self.scroll_offset
@@ -315,6 +481,7 @@ class UI:
                     continue
 
                 if ch in (10, 13):
+                    self.input_cursor = 0
                     msg = self.input_buf.strip()
                     self.input_buf = ""
                     if not msg:
@@ -346,9 +513,35 @@ class UI:
                             self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES :]
 
                 elif ch in (curses.KEY_BACKSPACE, 127, 8):
-                    self.input_buf = self.input_buf[:-1]
+                   if self.input_cursor > 0:
+                        self.input_buf = (
+                            self.input_buf[: self.input_cursor - 1] + self.input_buf[self.input_cursor :]
+                        )
+                        self.input_cursor -= 1
+                elif ch == curses.KEY_DC:
+                    if self.input_cursor < len(self.input_buf):
+                        self.input_buf = (
+                            self.input_buf[: self.input_cursor] + self.input_buf[self.input_cursor + 1 :]
+                        )
+                elif ch == curses.KEY_LEFT:
+                    if self.input_cursor > 0:
+                        self.input_cursor -= 1
+                elif ch == curses.KEY_RIGHT:
+                    if self.input_cursor < len(self.input_buf):
+                        self.input_cursor += 1
+                elif ch in (curses.KEY_HOME,):
+                    self.input_cursor = 0
+                elif ch in (curses.KEY_END,):
+                    self.input_cursor = len(self.input_buf)
+                elif ch == (ord("a") - ord("a") + 1):  # Ctrl+A -> Home
+                    self.input_cursor = 0
+                elif ch == (ord("e") - ord("a") + 1):  # Ctrl+E -> End
+                    self.input_cursor = len(self.input_buf)
                 elif 32 <= ch <= 126 and len(self.input_buf) < self.config.MAX_INPUT_LEN:
-                    self.input_buf += chr(ch)
-
+                    ch_val = chr(ch)
+                    self.input_buf = (
+                        self.input_buf[: self.input_cursor] + ch_val + self.input_buf[self.input_cursor :]
+                    )
+                    self.input_cursor += 1
             except Exception:
                 pass

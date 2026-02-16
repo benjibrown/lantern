@@ -208,3 +208,6 @@ __marimo__/
 
 # Lantern session (credentials)
 .lantern_session
+server/messages.json 
+server/users.json 
+

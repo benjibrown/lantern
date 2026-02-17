@@ -79,7 +79,7 @@ class UI:
                 r"  / / __ `/ __ \/ __/ _ \/ ___/ __ \ ",
                 r" / / /_/ / / / / /_/  __/ /  / / / / ",
                 r"/_/\__,_/_/ /_/\__/\___/_/  /_/ /_(_)",
-                r"       lightweight terminal chat",
+                r"      lightweight terminal chat",
             ]
             art = random.choice([art1, art2, art3, art4, art5])
             art_lines = len(art)
@@ -180,7 +180,6 @@ class UI:
             "ctrl+h   Help menu",
             "ctrl+/   Show keybinds",
             "ctrl+f   Fetch system info",
-            "ctrl+c   Switch to channel view",
             "ctrl+p   Open user panel (DM picker)",
             "ctrl+d   Toggle Do Not Disturb",
             "ctrl+l   Logout",
@@ -545,3 +544,5 @@ class UI:
                     self.input_cursor += 1
             except Exception:
                 pass
+
+

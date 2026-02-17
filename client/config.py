@@ -53,8 +53,8 @@ class Config:
         else:
             self.USERNAME = self.USERNAME or None
             self.PASSWORD = None
-
-        self.MAX_MSG_LEN = 400
+        # default max until fetched from server
+        self.MAX_MESSAGE_LEN = 400
         self.MAX_INPUT_LEN = 300
         self.MAX_MESSAGES = 500
         self.FETCH_COOLDOWN = 30

@@ -2,11 +2,9 @@ import json
 import socket
 import time
 import threading
-
 from rich import print
 
 TIMEOUT = 15
-
 
 class NetworkManager:
     def __init__(self, host, port, state):
@@ -46,6 +44,12 @@ class NetworkManager:
                 pass
         else:
             self.broadcast(msg)
+    def send_max_message_len(self, target_addr):
+        msg = f"[MAX_MSG_LEN]|{self.state.MAX_MSG_LEN}"
+        try:
+            self.sock.sendto(msg.encode(), target_addr)
+        except Exception:
+            pass
 
     def send_user_list_detailed(self, target_addr, requesting_username: str):
         online = set(info["username"] for info in self.state.clients.values())
@@ -263,6 +267,10 @@ class NetworkManager:
                     self.handle_ping(addr)
                     continue
 
+                if msg.startswith("[REQ_MAX_MSG_LEN]"):
+                    self.send_max_message_len(addr)
+                    continue
+
                 if msg.startswith("[REGISTER]|"):
                     self.handle_register(msg, addr)
                     continue
@@ -278,6 +286,7 @@ class NetworkManager:
                 if msg.startswith("[LEAVE]|"):
                     self.handle_leave(msg, addr)
                     continue
+
 
                 if msg.startswith("[REQ_USERS]|"):
                     self.handle_req_users(addr)

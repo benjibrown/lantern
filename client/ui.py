@@ -2,10 +2,12 @@ import curses
 import time
 import textwrap
 import subprocess
-import random 
+import random
+
 # ------ UI class ------
 # next time im not using curses lmao
-# TODO - make UI nicer, colors, improve menus, dnd color highlighting, icons etc 
+# TODO - make UI nicer, colors, improve menus, dnd color highlighting, icons etc
+
 
 class UI:
     def __init__(self, config, state, network, command_handler):
@@ -18,16 +20,19 @@ class UI:
         self.scroll_offset = 0
         self.dm_scroll_offset = 0
 
-
     def draw_status_bar(self, stdscr, h, w, y):
         now = time.time()
         uptime = int(now - self.state.start_time)
         hrs = uptime // 3600
         mins = (uptime % 3600) // 60
         secs = uptime % 60
-        uptime_str = f"{hrs:02d}:{mins:02d}:{secs:02d}" if hrs else f"{mins:02d}:{secs:02d}"
+        uptime_str = (
+            f"{hrs:02d}:{mins:02d}:{secs:02d}" if hrs else f"{mins:02d}:{secs:02d}"
+        )
         clock = time.strftime("%H:%M:%S")
-        ping_str = f"{self.network.ping_ms}ms" if self.network.ping_ms is not None else "—"
+        ping_str = (
+            f"{self.network.ping_ms}ms" if self.network.ping_ms is not None else "—"
+        )
 
         with self.state.lock:
             user_count = len(self.state.users)
@@ -39,7 +44,6 @@ class UI:
         else:
             status = f" {clock} │ users: {user_count} │ ping: {ping_str} │ up: {uptime_str} │ dnd: {'on' if self.state.dnd else 'off'} "
         stdscr.addstr(y, 0, status[: w - 1].ljust(w - 1), curses.A_DIM)
-
 
     def show_help(self, stdscr):
         h, w = stdscr.getmaxyx()
@@ -233,7 +237,7 @@ class UI:
             ul = [(u, "?", 0) for u in sorted(self.state.users)]
         if not ul:
             return
-        # filter out current user from the list 
+        # filter out current user from the list
         ul = [u for u in ul if u[0] != self.config.USERNAME]
         h, w = stdscr.getmaxyx()
         win_h = min(len(ul) + 4, h - 4)
@@ -258,7 +262,9 @@ class UI:
         while True:
             for i, (u, status, ts) in enumerate(ul[: win_h - 4]):
                 try:
-                    ts_str = time.strftime("%m/%d %H:%M", time.localtime(ts)) if ts else "—"
+                    ts_str = (
+                        time.strftime("%m/%d %H:%M", time.localtime(ts)) if ts else "—"
+                    )
                     line = f" {u[:16]:16}  {status:8} {ts_str}"
                     is_selected = i == sel
                     if is_selected:
@@ -335,6 +341,7 @@ class UI:
         self.input_buf = ""
         self.network.request_user_list()
         self.input_cursor = 0
+        self.network.request_max_msg_len()
 
         while self.state.running:
             stdscr.erase()
@@ -356,16 +363,28 @@ class UI:
             for text, is_self in chat_snapshot:
                 display_text = text
                 is_system = text.startswith("[system]")
-                if is_self and self.config.USERNAME and text.startswith(f"[{self.config.USERNAME}]: "):
+                if (
+                    is_self
+                    and self.config.USERNAME
+                    and text.startswith(f"[{self.config.USERNAME}]: ")
+                ):
                     display_text = text[len(f"[{self.config.USERNAME}]: ") :]
-                elif is_self and self.config.USERNAME and text.startswith(f"[{self.config.USERNAME}] "):
+                elif (
+                    is_self
+                    and self.config.USERNAME
+                    and text.startswith(f"[{self.config.USERNAME}] ")
+                ):
                     display_text = text[len(f"[{self.config.USERNAME}] ") :]
                 prefix = "[you] " if is_self and not is_system else ""
                 for l in textwrap.wrap(prefix + display_text, chat_w) or [""]:
                     lines.append((l, is_self, text, is_system))
 
             total_lines = len(lines)
-            scroll = self.dm_scroll_offset if (view == "dm" and dm_target) else self.scroll_offset
+            scroll = (
+                self.dm_scroll_offset
+                if (view == "dm" and dm_target)
+                else self.scroll_offset
+            )
             max_scroll = max(0, total_lines - chat_h)
             scroll = min(scroll, max_scroll)
             if view == "dm" and dm_target:
@@ -377,19 +396,21 @@ class UI:
             end = total_lines - scroll
             visible_lines = lines[start:end]
 
-            for i, (line, is_self, original_text, is_system) in enumerate(visible_lines):
+            for i, (line, is_self, original_text, is_system) in enumerate(
+                visible_lines
+            ):
                 if is_system:
                     stdscr.addstr(i, 0, line, curses.color_pair(4))
                 elif is_self:
                     stdscr.addstr(i, 0, line, curses.color_pair(1))
-                elif original_text.startswith("[") and original_text.endswith(" joined]"):
+                elif original_text.startswith("[") and original_text.endswith(
+                    " joined]"
+                ):
                     stdscr.addstr(i, 0, line, curses.color_pair(2) | curses.A_DIM)
                 elif original_text.startswith("[") and original_text.endswith(" left]"):
                     stdscr.addstr(i, 0, line, curses.color_pair(3) | curses.A_DIM)
                 else:
                     stdscr.addstr(i, 0, line)
-
-
 
             stdscr.vline(0, chat_w, "|", chat_h)
             for i, u in enumerate(user_snapshot[:chat_h]):
@@ -399,7 +420,7 @@ class UI:
             SEP_Y = h - 2
             STATUS_Y = h - 1
             prompt = "> "
-            #visible = self.input_buf[-(chat_w - len(prompt) - 1) :] - old code, here until i can test the new scrolling input buffer code
+            # visible = self.input_buf[-(chat_w - len(prompt) - 1) :] - old code, here until i can test the new scrolling input buffer code
 
             max_input_width = max(1, chat_w - len(prompt) - 1)
 
@@ -446,14 +467,14 @@ class UI:
                     else:
                         continue
 
-                # ---- keybinds ---- 
-                # - ord('a') - caps lock fix 
+                # ---- keybinds ----
+                # - ord('a') - caps lock fix
 
                 # help menu for ctrl + h
                 if ch in (8, 127) and curses.keyname(ch) == b"^H":
                     self.show_help(stdscr)
                     continue
-                # ctrl + / for keybinds 
+                # ctrl + / for keybinds
                 if ch in (31, ord("_")):
                     self.show_keybinds(stdscr)
                     continue
@@ -466,7 +487,7 @@ class UI:
                 if ch in (6, ord("f") - ord("a") + 1):
                     if self.command_handler.handle_command("/fetch", stdscr):
                         continue
-                # ctrl + p for panel 
+                # ctrl + p for panel
                 if ch == (ord("p") - ord("a") + 1):
                     if self.command_handler.handle_command("/panel", stdscr):
                         continue
@@ -474,12 +495,16 @@ class UI:
                 if ch == (ord("d") - ord("a") + 1):
                     if self.command_handler.handle_command("/dnd", stdscr):
                         continue
-                # ctrl + b to return to main channel 
+                # ctrl + b to return to main channel
                 if ch == (ord("b") - ord("a") + 1):
                     if self.command_handler.handle_command("/back", stdscr):
                         continue
-                
-                scroll_off = self.dm_scroll_offset if (view == "dm" and dm_target) else self.scroll_offset
+
+                scroll_off = (
+                    self.dm_scroll_offset
+                    if (view == "dm" and dm_target)
+                    else self.scroll_offset
+                )
                 if ch == curses.KEY_UP:
                     if view == "dm" and dm_target:
                         self.dm_scroll_offset += 1
@@ -502,39 +527,56 @@ class UI:
                     if self.command_handler.handle_command(msg, stdscr):
                         continue
 
-                    msg = msg[: self.config.MAX_MSG_LEN]
+                    msg = msg[: self.config.MAX_MESSAGE_LEN]
+
                     if view == "dm" and dm_target:
                         out = f"[{self.config.USERNAME}]: {msg}"
                         self.network.send_dm(dm_target, msg)
                         with self.state.lock:
-                            no_response = time.time() - self.state.last_received_from_server > self.config.SERVER_RESPONSE_TIMEOUT
+                            no_response = (
+                                time.time() - self.state.last_received_from_server
+                                > self.config.SERVER_RESPONSE_TIMEOUT
+                            )
                             if self.state.send_failed or no_response:
                                 self.state.send_failed = False
-                                self.state.append_dm(dm_target, "[system] Failed to send (connection error)", True)
+                                self.state.append_dm(
+                                    dm_target,
+                                    "[system] Failed to send (connection error)",
+                                    True,
+                                )
                             else:
                                 self.state.append_dm(dm_target, out, True)
                     else:
                         out = f"[{self.config.USERNAME}]: {msg}"
                         self.network.send_message(out)
                         with self.state.lock:
-                            no_response = time.time() - self.state.last_received_from_server > self.config.SERVER_RESPONSE_TIMEOUT
+                            no_response = (
+                                time.time() - self.state.last_received_from_server
+                                > self.config.SERVER_RESPONSE_TIMEOUT
+                            )
                             if self.state.send_failed or no_response:
                                 self.state.send_failed = False
-                                self.state.messages.append(("[system] Failed to send (connection error)", True))
+                                self.state.messages.append(
+                                    ("[system] Failed to send (connection error)", True)
+                                )
                             else:
                                 self.state.messages.append((out, True))
-                            self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES :]
+                            self.state.messages[:] = self.state.messages[
+                                -self.config.MAX_MESSAGES :
+                            ]
 
                 elif ch in (curses.KEY_BACKSPACE, 127, 8):
-                   if self.input_cursor > 0:
+                    if self.input_cursor > 0:
                         self.input_buf = (
-                            self.input_buf[: self.input_cursor - 1] + self.input_buf[self.input_cursor :]
+                            self.input_buf[: self.input_cursor - 1]
+                            + self.input_buf[self.input_cursor :]
                         )
                         self.input_cursor -= 1
                 elif ch == curses.KEY_DC:
                     if self.input_cursor < len(self.input_buf):
                         self.input_buf = (
-                            self.input_buf[: self.input_cursor] + self.input_buf[self.input_cursor + 1 :]
+                            self.input_buf[: self.input_cursor]
+                            + self.input_buf[self.input_cursor + 1 :]
                         )
                 elif ch == curses.KEY_LEFT:
                     if self.input_cursor > 0:
@@ -550,13 +592,15 @@ class UI:
                     self.input_cursor = 0
                 elif ch == (ord("e") - ord("a") + 1):  # Ctrl+E -> End
                     self.input_cursor = len(self.input_buf)
-                elif 32 <= ch <= 126 and len(self.input_buf) < self.config.MAX_INPUT_LEN:
+                elif (
+                    32 <= ch <= 126 and len(self.input_buf) < self.config.MAX_INPUT_LEN
+                ):
                     ch_val = chr(ch)
                     self.input_buf = (
-                        self.input_buf[: self.input_cursor] + ch_val + self.input_buf[self.input_cursor :]
+                        self.input_buf[: self.input_cursor]
+                        + ch_val
+                        + self.input_buf[self.input_cursor :]
                     )
                     self.input_cursor += 1
             except Exception:
                 pass
-
-

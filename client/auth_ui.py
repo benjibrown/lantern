@@ -2,6 +2,8 @@ import curses
 import socket
 import time
 import json
+import hashlib
+import secrets
 
 
 def _send_recv(host: str, port: int, msg: str, timeout=5.0):
@@ -13,7 +15,6 @@ def _send_recv(host: str, port: int, msg: str, timeout=5.0):
         return data.decode(errors="ignore").strip()
     finally:
         sock.close()
-
 
 def run_auth_ui(stdscr, config):
     # the login/reigster form - this took way too long lol

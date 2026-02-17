@@ -5,6 +5,7 @@ import platform
 import subprocess
 import json
 
+
 class NetworkManager:
     def __init__(self, config, state):
         self.config = config
@@ -29,7 +30,9 @@ class NetworkManager:
 
     def send_message(self, msg):
         try:
-            self.sock.sendto(msg.encode(), (self.config.SERVER_HOST, self.config.SERVER_PORT))
+            self.sock.sendto(
+                msg.encode(), (self.config.SERVER_HOST, self.config.SERVER_PORT)
+            )
         except OSError:
             with self.state.lock:
                 self.state.send_failed = True
@@ -71,11 +74,19 @@ class NetworkManager:
             (self.config.SERVER_HOST, self.config.SERVER_PORT),
         )
 
+    def request_max_msg_len(self):
+        self.sock.sendto(
+            f"[REQ_MAX_MSG_LEN]|{self.config.USERNAME}".encode(),
+            (self.config.SERVER_HOST, self.config.SERVER_PORT),
+        )
+
     def keepalive(self):
         while self.state.running:
             try:
                 self.last_ping_sent = time.time()
-                self.sock.sendto(b"[ping]", (self.config.SERVER_HOST, self.config.SERVER_PORT))
+                self.sock.sendto(
+                    b"[ping]", (self.config.SERVER_HOST, self.config.SERVER_PORT)
+                )
                 time.sleep(5)
             except Exception:
                 pass
@@ -95,7 +106,9 @@ class NetworkManager:
                 if msg == "[ping]":
                     self.last_ping_recv = time.time()
                     if self.last_ping_sent > 0:
-                        self.ping_ms = int((self.last_ping_recv - self.last_ping_sent) * 1000)
+                        self.ping_ms = int(
+                            (self.last_ping_recv - self.last_ping_sent) * 1000
+                        )
                     continue
 
                 if msg == "[AUTH_OK]":
@@ -128,7 +141,9 @@ class NetworkManager:
                                     sender = m.get("sender", "")
                                     is_self = sender == self.config.USERNAME
                                     self.state.messages.append((text, is_self))
-                                self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                                self.state.messages[:] = self.state.messages[
+                                    -self.config.MAX_MESSAGES :
+                                ]
                             self.state.channel_history_buffer = []
                             self.state.channel_history_ready = True
                             self.state.authenticated = True
@@ -159,20 +174,47 @@ class NetworkManager:
                         self.state.users_detailed.sort(key=lambda x: -x[2])
                         continue
 
+                    # fetch max message length from server
+                    if msg.startswith("[MAX_MSG_LEN]|"):
+                        try:
+                            self.config.MAX_MESSAGE_LEN = int(msg.split("|", 1)[1])
+                        except Exception:
+                            pass
+                        continue
+
                     if msg.startswith("[DM]|"):
                         parts = msg.split("|", 3)
                         if len(parts) >= 4:
-                            _, from_user, _ts, text = parts[0], parts[1], parts[2], parts[3]
+                            _, from_user, _ts, text = (
+                                parts[0],
+                                parts[1],
+                                parts[2],
+                                parts[3],
+                            )
                             is_self = from_user == self.config.USERNAME
                             if is_self:
                                 continue
-                            self.state.append_dm(from_user, f"[{from_user}]: {text}", False)
+                            self.state.append_dm(
+                                from_user, f"[{from_user}]: {text}", False
+                            )
                             if not self.state.dnd:
                                 try:
                                     if platform.system() == "Darwin":
-                                        subprocess.run(["osascript", "-e", f'display notification "DM from {from_user}" with title "Lantern"'])
+                                        subprocess.run(
+                                            [
+                                                "osascript",
+                                                "-e",
+                                                f'display notification "DM from {from_user}" with title "Lantern"',
+                                            ]
+                                        )
                                     elif platform.system() == "Linux":
-                                        subprocess.run(["notify-send", "Lantern", f"DM from {from_user}"])
+                                        subprocess.run(
+                                            [
+                                                "notify-send",
+                                                "Lantern",
+                                                f"DM from {from_user}",
+                                            ]
+                                        )
                                 except Exception:
                                     pass
                         continue
@@ -192,21 +234,39 @@ class NetworkManager:
                                     sender = m.get("sender", "")
                                     text = m.get("text", "")
                                     is_self = sender == self.config.USERNAME
-                                    self.state.dm_conversations[other].append((f"[{sender}]: {text}", is_self))
-                                self.state.dm_conversations[other][:] = self.state.dm_conversations[other][-self.config.MAX_MESSAGES:]
+                                    self.state.dm_conversations[other].append(
+                                        (f"[{sender}]: {text}", is_self)
+                                    )
+                                self.state.dm_conversations[other][:] = (
+                                    self.state.dm_conversations[other][
+                                        -self.config.MAX_MESSAGES :
+                                    ]
+                                )
                                 self.state.pending_dm_history = None
                             except Exception:
                                 self.state.pending_dm_history = None
                         continue
 
-                    is_self = msg.startswith(f"[{self.config.USERNAME}]:") or msg.startswith(f"[{self.config.USERNAME}] system")
-                    self.state.messages.append((msg[: self.config.MAX_MSG_LEN], is_self))
-                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                    is_self = msg.startswith(
+                        f"[{self.config.USERNAME}]:"
+                    ) or msg.startswith(f"[{self.config.USERNAME}] system")
+                    self.state.messages.append(
+                        (msg[: self.config.MAX_MESSAGE_LEN], is_self)
+                    )
+                    self.state.messages[:] = self.state.messages[
+                        -self.config.MAX_MESSAGES :
+                    ]
                     # TODO - ANSII detection for focus - only show noti if window not focused, this is fine for now, if u hate notis run /dnd
                     if not is_self and not self.state.dnd:
                         try:
                             if platform.system() == "Darwin":
-                                subprocess.run(["osascript", "-e", f'display notification "{msg[:50]}" with title "New Message"'])
+                                subprocess.run(
+                                    [
+                                        "osascript",
+                                        "-e",
+                                        f'display notification "{msg[:50]}" with title "New Message"',
+                                    ]
+                                )
                             elif platform.system() == "Linux":
                                 subprocess.run(["notify-send", "New Message", msg[:50]])
                         except Exception:

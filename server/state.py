@@ -24,6 +24,9 @@ class ServerState:
         self.dm_conversations = self._load_dm_conversations()  # (u1,u2) normalized -> [{"sender", "text", "timestamp"}]
         self._dm_key = lambda a, b: tuple(sorted([a, b]))
 
+        # DEFAULT CONFIG
+        self.MAX_MSG_LEN = 400
+
     def _load_users(self):
         if os.path.exists(USERS_FILE):
             try:
@@ -66,10 +69,10 @@ class ServerState:
     def validate_user(self, username: str, password: str) -> bool:
         if username not in self.users:
             return False
-        entry = self.users[username]
+        entry = self.users[username] 
         if isinstance(entry, str):
             return entry == password  # legacy plain storage
-        salt = entry.get("salt", "")
+        salt = entry.get("salt", "") 
         h = entry.get("hash", "")
         return h == _hash_password(password, salt)
 
@@ -108,7 +111,7 @@ class ServerState:
         msg = {"sender": sender, "text": text, "timestamp": time.time()}
         self.dm_conversations[key].append(msg)
         self.dm_conversations[key] = self.dm_conversations[key][-MAX_DM_MESSAGES_PER_CONV:]
-        self.save_all()
+        self.save_all() 
         return msg
 
     def get_dm_history(self, user1: str, user2: str, limit=500):

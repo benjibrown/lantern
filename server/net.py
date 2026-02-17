@@ -95,6 +95,8 @@ class NetworkManager:
             except Exception:
                 pass
             return
+
+
         if self.state.register_user(username, password):
             try:
                 self.sock.sendto("[REGISTER_OK]".encode(), addr)

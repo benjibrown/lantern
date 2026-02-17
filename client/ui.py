@@ -233,6 +233,8 @@ class UI:
             ul = [(u, "?", 0) for u in sorted(self.state.users)]
         if not ul:
             return
+        # filter out current user from the list 
+        ul = [u for u in ul if u[0] != self.config.USERNAME]
         h, w = stdscr.getmaxyx()
         win_h = min(len(ul) + 4, h - 4)
         win_w = min(52, w - 4)
@@ -436,7 +438,7 @@ class UI:
                 if ch == -1:
                     time.sleep(0.02)
                     continue
-
+                # ---- double escape to quit immediately ----
                 if ch == 27:
                     ch2 = stdscr.getch()
                     if ch2 == 27:
@@ -444,26 +446,38 @@ class UI:
                     else:
                         continue
 
+                # ---- keybinds ---- 
+                # - ord('a') - caps lock fix 
+
+                # help menu for ctrl + h
                 if ch in (8, 127) and curses.keyname(ch) == b"^H":
                     self.show_help(stdscr)
                     continue
+                # ctrl + / for keybinds 
                 if ch in (31, ord("_")):
                     self.show_keybinds(stdscr)
                     continue
+                # ctrl + w for exit with confirm
                 if ch in (23, ord("w") - ord("a") + 1):
                     if self.confirm_exit(stdscr):
                         self.command_handler.shutdown()
                     continue
+                # ctrl + f for fetch
                 if ch in (6, ord("f") - ord("a") + 1):
                     if self.command_handler.handle_command("/fetch", stdscr):
                         continue
+                # ctrl + p for panel 
                 if ch == (ord("p") - ord("a") + 1):
                     if self.command_handler.handle_command("/panel", stdscr):
                         continue
+                # ctrl + d for dnd toggle
                 if ch == (ord("d") - ord("a") + 1):
                     if self.command_handler.handle_command("/dnd", stdscr):
                         continue
-
+                # ctrl + b to return to main channel 
+                if ch == (ord("b") - ord("a") + 1):
+                    if self.command_handler.handle_command("/back", stdscr):
+                        continue
                 
                 scroll_off = self.dm_scroll_offset if (view == "dm" and dm_target) else self.scroll_offset
                 if ch == curses.KEY_UP:

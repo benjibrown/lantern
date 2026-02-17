@@ -33,20 +33,33 @@ class CommandHandler:
             now = time.time()
             if now - self.last_fetch < self.config.FETCH_COOLDOWN:
                 with self.state.lock:
-                    self.state.messages.append(("[system] fetch cooldown", True))
+                    if self.state.current_view == "dm" and self.state.dm_target:
+                        self.state.append_dm(self.state.dm_target, f"[system] fetch cooldown ({int(self.config.FETCH_COOLDOWN - (now - self.last_fetch))}s remaining)", True)
+                    else:
+                        self.state.messages.append((f"[system] fetch cooldown ({int(self.config.FETCH_COOLDOWN - (now - self.last_fetch))}s remaining)", True))
                 return True
+                                
 
             self.last_fetch = now
             info = self.network.system_fetch()
 
             with self.state.lock:
-                self.state.messages.append(("system", True))
+                if self.state.current_view == "dm" and self.state.dm_target:
+                    self.state.append_dm(self.state.dm_target, "system", True)
+                    for k, v in info.items():
+                        self.state.append_dm(self.state.dm_target, f"  {k}: {v}", True)
+                else:
+                    self.state.messages.append(("system", True))
+                    for k, v in info.items():
+                        self.state.messages.append((f"  {k}: {v}", True))
+            if self.state.current_view == "dm" and self.state.dm_target:
+                self.network.send_dm(self.state.dm_target, "system")
                 for k, v in info.items():
-                    self.state.messages.append((f"  {k}: {v}", True))
-
-            self.network.send_message(f"[{self.config.USERNAME}] system")
-            for k, v in info.items():
-                self.network.send_message(f"  {k}: {v}")
+                    self.network.send_dm(self.state.dm_target, f"  {k}: {v}")
+            else:
+                self.network.send_message(f"[{self.config.USERNAME}] system")
+                for k, v in info.items():
+                    self.network.send_message(f"  {k}: {v}")
             return True
 
         if msg == "/channel" or msg == "/back":
@@ -58,8 +71,26 @@ class CommandHandler:
         # TODO - popup window when typing /.. to show available commands. autocompletion????? idk if this is possible in curses 
         if msg.startswith("/dm "):
             target = msg[4:].strip()
+            # TODO - validate target username (exists, not self), also dm cmd doesnt work in the dm view - idk why
+            
             if not target:
                 return True
+
+            if target == self.config.USERNAME:
+                with self.state.lock:
+                    if self.state.current_view == "dm" and self.state.dm_target:
+                        self.state.append_dm(self.state.dm_target, "[system] cannot DM yourself", True)
+                    else:
+                        self.state.messages.append(("[system] cannot DM yourself", True))
+                return True
+            if target not in self.state.users:
+                with self.state.lock:
+                    if self.state.current_view == "dm" and self.state.dm_target:
+                        self.state.append_dm(self.state.dm_target, f"[system] user '{target}' not found", True)
+                    else:
+                        self.state.messages.append((f"[system] user '{target}' not found", True))
+                return True
+
             with self.state.lock:
                 self.state.dm_target = target
                 self.state.current_view = "dm"

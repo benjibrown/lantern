@@ -7,6 +7,8 @@ class ClientState:
         self.messages = []
         self.username = username
         self.users = set()
+        self.session_token = None 
+        self.admins = set()
         self.lock = threading.RLock()
         self.running = True
         self.start_time = time.time()

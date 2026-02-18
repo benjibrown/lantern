@@ -1,4 +1,4 @@
-import json
+import json 
 import socket
 import time
 import threading
@@ -35,6 +35,7 @@ class NetworkManager:
         return False
 
     def send_user_list(self, target_addr=None):
+
         user_list = ";".join(info["username"] for info in self.state.clients.values())
         msg = f"[USERS]|{user_list}"
         if target_addr:
@@ -45,7 +46,6 @@ class NetworkManager:
         else:
             self.broadcast(msg)
 
-    # TODO - fix 
     def send_admin_list(self, target_addr=None):
         admins = ";".join(sorted(self.state.admins))
         msg = f"[ADMINS]|{admins}"
@@ -56,7 +56,6 @@ class NetworkManager:
                 pass
         else:
             self.broadcast(msg)
-
 
     def send_max_message_len(self, target_addr):
         msg = f"[MAX_MSG_LEN]|{self.state.MAX_MSG_LEN}"
@@ -73,9 +72,8 @@ class NetworkManager:
             all_users.add(u)
         entries = []
         for u in sorted(all_users):
-
             if self.state.is_banned(u):
-                continue 
+                continue
             status = "online" if u in online else "offline"
             ts = last_dm.get(u, 0)
             entries.append(f"{u},{status},{ts}")
@@ -142,24 +140,21 @@ class NetworkManager:
             except Exception:
                 pass
             return
-
         if self.state.is_banned(username):
             try:
-                self.sock.sendto("[AUTH_FAIL]|You are banned".encode(), addr)
+                self.sock.sendto("[AUTH_FAIL]|User banned".encode(), addr)
             except Exception:
                 pass
             return
-
         if not self.state.validate_user(username, password):
             try:
                 self.sock.sendto("[AUTH_FAIL]|Bad username or password".encode(), addr)
             except Exception:
                 pass
             return
-        # issue token 
+        # i love tokens 
         token = self.state.create_session(username)
         self.state.set_pending_auth(addr, username)
-
         try:
             self.sock.sendto(f"[AUTH_OK]|{token}".encode(), addr)
             print(token)
@@ -187,6 +182,7 @@ class NetworkManager:
         self.send_user_list()
         self.send_user_list(addr)
         self.send_admin_list(addr)
+        # send recent channel history so new joiners have some context
         history = self.state.get_channel_history()
         payload = json.dumps(history)
         chunk_size = 4000
@@ -223,7 +219,6 @@ class NetworkManager:
         if not client_info:
             return
         sender = client_info.get("username", str(addr))
-        # block muted users from sending to the main channel
         if self.state.is_muted(sender):
             try:
                 self.sock.sendto(
@@ -279,9 +274,8 @@ class NetworkManager:
         except Exception:
             pass
 
-
     def handle_admin_cmd(self, msg, addr):
-        # expected format: [ADMIN_CMD]|<command>|<actor>|<token>|<args...>
+
         parts = msg.split("|", 4)
         if len(parts) < 4:
             try:
@@ -349,14 +343,12 @@ class NetworkManager:
                         kicked_addrs.append(a)
                 for a in kicked_addrs:
                     try:
-                        #dedicated banned message so clients can immediately exit
                         self.sock.sendto(
                             "[BANNED]|You have been banned from this server".encode(),
                             a,
                         )
                     except Exception:
                         pass
-                    # reuse leave semantics
                     self.handle_leave(f"[LEAVE]|{target}", a)
                 info = f"[system] {actor} banned {target}"
 
@@ -369,12 +361,12 @@ class NetworkManager:
             self.state.add_channel_message("system", info)
             return
 
-        if command == "changeuser":
+        if command == "changeusername":
             # rest: "<target>|<new_name>"
             if "|" not in rest:
                 try:
                     self.sock.sendto(
-                        "[ADMIN_ERROR]|/changeuser requires 'old_name|new_name'".encode(),
+                        "[ADMIN_ERROR]|/changeusername requires 'old_name|new_name'".encode(),
                         addr,
                     )
                 except Exception:
@@ -417,8 +409,6 @@ class NetworkManager:
                 self.sock.sendto("[ADMIN_OK]|Username changed".encode(), addr)
             except Exception:
                 pass
-            #update any active client records using the old username
-
             for a, info_dict in list(self.state.clients.items()):
                 if info_dict.get("username") == old_name:
                     info_dict["username"] = new_name
@@ -435,7 +425,6 @@ class NetworkManager:
             self.sock.sendto(f"[ADMIN_ERROR]|Unknown admin command '{command}'".encode(), addr)
         except Exception:
             pass
-
 
     def cleanup_loop(self):
         while True:

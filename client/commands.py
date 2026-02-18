@@ -107,8 +107,44 @@ class CommandHandler:
             with self.state.lock:
                 self.state.dnd = not self.state.dnd
                 status = "on (notifications off)" if self.state.dnd else "off (notifications on)"
+                # TODO - fix for dm view 
                 self.state.messages.append((f"[system] Do not disturb {status}", True))
                 self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+            return True
+        
+        #admin / moderation commands
+        if msg.startswith("/mute ") or msg.startswith("/unmute ") or msg.startswith("/ban "):
+            parts = msg.split(maxsplit=1)
+            if len(parts) != 2 or not parts[1].strip():
+                with self.state.lock:
+                    if self.state.current_view == "dm" and self.state.dm_target:
+                        self.state.append_dm(self.state.dm_target, "[system] Usage: /mute <user>, /unmute <user>, /ban <user>", True)
+                    else:
+                        self.state.messages.append(
+                        ("[system] Usage: /mute <user>, /unmute <user>, /ban <user>", True)
+                    )
+                        self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                return True
+            target = parts[1].strip()
+            cmd = parts[0][1:]  # strip leading '/'
+            self.network.send_admin_command(cmd, target)
+            return True
+
+        if msg.startswith("/changeusername"):
+            parts = msg.split()
+            if len(parts) != 3:
+                with self.state.lock:
+                    if self.state.current_view == "dm" and self.state.dm_target:
+                        self.state.append_dm(self.state.dm_target, "[system] Usage: /changeusername <old_username> <new_username>", True)
+                    else:
+                        self.state.messages.append(
+                        ("[system] Usage: /changeusername <old_username> <new_username>", True)
+                    )
+                        self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                return True
+            _, old_name, new_name = parts
+            payload = f"{old_name}|{new_name}"
+            self.network.send_admin_command("changeusername", payload)
             return True
 
         return False

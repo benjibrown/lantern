@@ -79,6 +79,25 @@ class NetworkManager:
             f"[REQ_MAX_MSG_LEN]|{self.config.USERNAME}".encode(),
             (self.config.SERVER_HOST, self.config.SERVER_PORT),
         )
+    
+    def send_admin_command(self, command: str, payload: str):
+        if not self.state.session_token:
+            # if we do not have a token yet, the server will not accept admin commands
+            with self.state.lock:
+                # append to messages if on main chat, append to dm if in dms 
+                if self.state.in_dm:
+                    self.state.append_dm(
+                        self.state.dm_conversation_partner,
+                        "[system] Cannot run admin command: no session token from server",
+                        True,
+                    )
+                else:
+                    self.state.messages.append(
+                    ("[system] Cannot run admin command: no session token from server", True)
+                )
+            return
+        full = f"[ADMIN_CMD]|{command}|{self.config.USERNAME}|{self.state.session_token}|{payload}"
+        self.send_message(full)
 
     def keepalive(self):
         while self.state.running:
@@ -111,7 +130,11 @@ class NetworkManager:
                         )
                     continue
 
-                if msg == "[AUTH_OK]":
+                if msg.startswith("[AUTH_OK]"):
+                    # capture session token if provided
+                    parts = msg.split("|", 1)
+                    if len(parts) > 1:
+                        self.state.session_token = parts[1]
                     self.send_join()
                     continue
 
@@ -158,6 +181,11 @@ class NetworkManager:
                         self.state.users = set(msg.split("|", 1)[1].split(";"))
                         if not self.state.channel_history_ready:
                             self.state.authenticated = True
+                        continue
+
+                    if msg.startswith("[ADMINS]|"):
+                        raw = msg.split("|", 1)[1]
+                        self.state.admins = set(u for u in raw.split(";") if u)
                         continue
 
                     if msg.startswith("[USERS_DETAILED]|"):
@@ -246,6 +274,56 @@ class NetworkManager:
                             except Exception:
                                 self.state.pending_dm_history = None
                         continue
+                    # TODO - ban reasons, implemented server side and here but need to allow for it in the client. 
+                    if msg.startswith("[BANNED]|"):
+                        reason = msg.split("|", 1)[1] if "|" in msg else "You have been banned from this server"
+
+                        with self.state.lock:
+                                # always send ban messages to main chat, even if in dm, since user is banned from server not just dm 
+                                self.state.messages.append((f"[system] {reason}", True))
+                                self.state.messages[:] = self.state.messages[
+                                    -self.config.MAX_MESSAGES :
+                                ]
+
+                        self.state.running = False
+                        # TODO - before qutting, show a message with ban reason for 10s and like ascii art just for the fun of it
+                        try:
+                            self.close()
+                        except Exception:
+                            pass
+                        continue
+
+                    # admin command feedback from the server
+                    if msg.startswith("[ADMIN_ERROR]|"):
+                        reason = msg.split("|", 1)[1] if "|" in msg else "Admin error"
+                        # route system message
+                        if self.state.current_view == "dm" and self.state.dm_target:
+                            self.state.append_dm(
+                                self.state.dm_target,
+                                f"[system] {reason}",
+                                True,
+                            )
+                        else:
+                            self.state.messages.append((f"[system] {reason}", True))
+                            self.state.messages[:] = self.state.messages[
+                                -self.config.MAX_MESSAGES :
+                            ]
+                        continue
+
+                    if msg.startswith("[ADMIN_OK]|"):
+                        detail = msg.split("|", 1)[1] if "|" in msg else "Admin command applied"
+                        if self.state.current_view == "dm" and self.state.dm_target:
+                            self.state.append_dm(
+                                self.state.dm_target,
+                                f"[system] {detail}",
+                                True,
+                            )
+                        else:
+                            self.state.messages.append((f"[system] {detail}", True))
+                            self.state.messages[:] = self.state.messages[
+                                -self.config.MAX_MESSAGES :
+                            ]
+                        continue
 
                     is_self = msg.startswith(
                         f"[{self.config.USERNAME}]:"
@@ -256,7 +334,7 @@ class NetworkManager:
                     self.state.messages[:] = self.state.messages[
                         -self.config.MAX_MESSAGES :
                     ]
-                    # TODO - ANSII detection for focus - only show noti if window not focused, this is fine for now, if u hate notis run /dnd
+                    # TODO - ANSII detection for focus - only show noti if window not focused, this is fine for now, if u hate notis run /dnd or ctrl+d
                     if not is_self and not self.state.dnd:
                         try:
                             if platform.system() == "Darwin":

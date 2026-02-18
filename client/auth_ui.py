@@ -156,7 +156,7 @@ def run_auth_ui(stdscr, config):
                 try:
                     if is_register:
                         out = _send_recv(config.SERVER_HOST, config.SERVER_PORT, f"[REGISTER]|{username}|{password}")
-                        if out == "[REGISTER_OK]":
+                        if out.startswith("[REGISTER_OK]"):
                             config.save_session(username, password)
                             return (username, password)
                         if out.startswith("[REGISTER_FAIL]|"):
@@ -165,7 +165,7 @@ def run_auth_ui(stdscr, config):
                             error = "Registration failed (server unreachable?)"
                     else:
                         out = _send_recv(config.SERVER_HOST, config.SERVER_PORT, f"[LOGIN]|{username}|{password}")
-                        if out == "[AUTH_OK]":
+                        if out.startswith("[AUTH_OK]"):
                             config.save_session(username, password)
                             return (username, password)
                         if out.startswith("[AUTH_FAIL]|"):

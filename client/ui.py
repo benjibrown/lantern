@@ -5,7 +5,7 @@ import subprocess
 import random
 
 # ------ UI class ------
-# next time im not using curses lmao
+# next time im not using curses lmao - textual??? it seems better but idk 
 # TODO - make UI nicer, colors, improve menus, dnd color highlighting, icons etc
 
 
@@ -48,6 +48,7 @@ class UI:
     def show_help(self, stdscr):
         h, w = stdscr.getmaxyx()
         if h >= 22 and w >= 70:
+            # bloatware
             art1 = [
                 r" _          _                  ",
                 r" | |__ _ _ _| |_ ___ _ _ _ _    ",
@@ -91,7 +92,7 @@ class UI:
                 "Commands:",
                 "  /exit      Quit chat",
                 "  /logout    Log out (next run: login again)",
-                "  /channel   Back to main channel",
+                "  /back      Back to main channel",
                 "  /dm <user> Open DM with user",
                 "  /panel     List users, pick one to DM",
                 "  /fetch     Send system info (30s cooldown)",
@@ -101,7 +102,7 @@ class UI:
                 "  Ctrl+H     Help menu",
                 "  Ctrl+/     Show keybinds",
                 "  Ctrl+F     Fetch system info",
-                "  Ctrl+C     Switch to channel view",
+                "  Ctrl+B     Switch to channel view",
                 "  Ctrl+P     Open user panel",
                 "  Ctrl+D     Toggle DND",
                 "  Ctrl+L     Logout",
@@ -119,7 +120,7 @@ class UI:
                 "/exit    Quit chat",
                 "/logout  Log out (next run: login again)",
                 "/help    Show this menu",
-                "/channel  Back to main channel",
+                "/back    Back to main channel",
                 "/dm <user>  Open DM with user",
                 "/panel   List users, pick one to DM",
                 "/fetch   Send system info (30s cooldown)",
@@ -262,12 +263,12 @@ class UI:
         while True:
             for i, (u, status, ts) in enumerate(ul[: win_h - 4]):
                 try:
-                    # [admin] tag for users with admin privileges
-                    display_name = f"{u} [ADMIN]" if u in self.state.admins else u
+                    #Cursor - add [ADMIN] tag in the user picker
+                    display_name = f"[ADMIN] {u}" if u in self.state.admins else u
                     ts_str = (
                         time.strftime("%m/%d %H:%M", time.localtime(ts)) if ts else "—"
                     )
-                    line = f" {display_name[:16]:16} {status:8} {ts_str}"
+                    line = f" {display_name[:16]:16}  {status:8} {ts_str}"
                     is_selected = i == sel
                     if is_selected:
                         attr = curses.color_pair(1) | curses.A_REVERSE
@@ -417,11 +418,10 @@ class UI:
 
             stdscr.vline(0, chat_w, "|", chat_h)
             for i, u in enumerate(user_snapshot[:chat_h]):
-                stdscr.addstr(i, chat_w + 2, u[: user_w - 2])
-            label = u 
-            if u in sef.state.admins:
-                label = f"{u} [ADMIN]"
-            stdscr.addstr(i, chat_w + 2, label[: user_w - 2])
+                label = u
+                if u in self.state.admins:
+                    label = f"[ADMIN] {u}"
+                stdscr.addstr(i, chat_w + 2, label[: user_w - 2])
 
             INPUT_Y = h - 3
             SEP_Y = h - 2

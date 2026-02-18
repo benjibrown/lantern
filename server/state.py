@@ -20,18 +20,17 @@ class ServerState:
     def __init__(self):
         self.clients = {}  # addr -> {"username": str, "last_seen": float}
         self.pending_auth = {}  # addr -> username (after LOGIN/REGISTER success, until JOIN)
-        self.sessions = {}
+        self.sessions = {}  # username -> current session token
 
-        self.users = self._load_users()
-
+        self.users = self._load_users()  # username -> dict/legacy password
         self.channel_messages = self._load_channel_messages()
         self.dm_conversations = self._load_dm_conversations()  # (u1,u2) normalized -> [{"sender", "text", "timestamp"}]
         self._dm_key = lambda a, b: tuple(sorted([a, b]))
-        
-        self.admins = self._load_admins()  # set of usernames with admin privileges
+
+        self.admins = self._load_admins()  # set of usernames
 
         # DEFAULT CONFIG
-        self.MAX_MSG_LEN = 400
+        self.MAX_MSG_LEN = 400 # shared with client during runtime, TODO - put in config file 
 
     def _load_users(self):
         if os.path.exists(USERS_FILE):
@@ -61,8 +60,7 @@ class ServerState:
             except Exception:
                 pass
         return {}
-    
-    # load admin list 
+
     def _load_admins(self):
         if os.path.exists(CONFIG_FILE):
             try:
@@ -75,13 +73,11 @@ class ServerState:
                 pass
         return set()
 
-    # save admin list
     def save_admins(self):
         data = {"admins": sorted(self.admins)}
         os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
         with open(CONFIG_FILE, "w") as f:
             json.dump(data, f, indent=2)
-
 
     def save_all(self):
         data = {
@@ -111,9 +107,8 @@ class ServerState:
                 return legacy_pw == password
             return False
 
-        return entry == password  # legacy plain-text match 
-
-
+        # legacy plain-text storage
+        return entry == password
 
     def user_exists(self, username: str) -> bool:
         return username in self.users
@@ -125,12 +120,13 @@ class ServerState:
         if username in self.users:
             return False
         salt = secrets.token_hex(16)
+
         h = _hash_password(password, salt)
         self.users[username] = {
-                "salt": salt,
-                "hash": h,
-                "banned": False,
-                "muted": False,
+            "salt": salt,
+            "hash": h,
+            "banned": False,
+            "muted": False,
         }
         self.save_all()
         return True
@@ -181,10 +177,10 @@ class ServerState:
     def pop_pending_auth(self, addr):
         return self.pending_auth.pop(addr, None)
 
-    def create_session(self, username: str):
+    def create_session(self, username: str) -> str:
         token = secrets.token_hex(32)
-        self.sessions[username] = token 
-        return token 
+        self.sessions[username] = token
+        return token
 
     def get_session_token(self, username: str) -> str | None:
         return self.sessions.get(username)
@@ -192,16 +188,14 @@ class ServerState:
     def clear_session(self, username: str):
         self.sessions.pop(username, None)
 
-    # mod and admin helpers 
-
     def is_admin(self, username: str) -> bool:
-        return username in self.admins 
+        return username in self.admins
 
     def is_banned(self, username: str) -> bool:
         entry = self.users.get(username)
         if isinstance(entry, dict):
             return bool(entry.get("banned"))
-        return False 
+        return False
 
     def is_muted(self, username: str) -> bool:
         entry = self.users.get(username)
@@ -212,17 +206,15 @@ class ServerState:
     def _ensure_user_dict(self, username: str):
         entry = self.users.get(username)
         if entry is None:
-            return 
+            return
         if isinstance(entry, dict):
             return
-
-        # legacy plain-text to dict 
+        # upgrade legacy plain-text entry to a structured dict, preserving password
         self.users[username] = {"legacy_password": entry, "banned": False, "muted": False}
 
     def set_banned(self, username: str, banned: bool):
         if username not in self.users:
-            return 
-
+            return
         self._ensure_user_dict(username)
         entry = self.users[username]
         if isinstance(entry, dict):
@@ -231,8 +223,7 @@ class ServerState:
 
     def set_muted(self, username: str, muted: bool):
         if username not in self.users:
-            return 
-
+            return
         self._ensure_user_dict(username)
         entry = self.users[username]
         if isinstance(entry, dict):
@@ -240,18 +231,18 @@ class ServerState:
         self.save_all()
 
     def rename_user(self, old_username: str, new_username: str) -> bool:
-        # allow renaming of accounts - the client must be restarted after
+        # if a user is renamed in dms then you must reopen dms for msgs to send 
         old_username = (old_username or "").strip()
         new_username = (new_username or "").strip()
-
-        if not new_username or new_username:
+        if not old_username or not new_username:
             return False
-
         if old_username not in self.users or new_username in self.users:
             return False
 
+        # move user entry
         self.users[new_username] = self.users.pop(old_username)
-        
+
+        # move session token if present
         if old_username in self.sessions:
             self.sessions[new_username] = self.sessions.pop(old_username)
 
@@ -266,11 +257,11 @@ class ServerState:
             new_dm_conversations[new_key] = msgs
         self.dm_conversations = new_dm_conversations
 
-        # update admin if needed 
+        # update admin set if needed
         if old_username in self.admins:
             self.admins.discard(old_username)
             self.admins.add(new_username)
             self.save_admins()
+
         self.save_all()
         return True
-

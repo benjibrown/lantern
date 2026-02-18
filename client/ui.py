@@ -42,7 +42,7 @@ class UI:
         if view == "dm" and dm_target:
             status = f" {clock} │ DM: {dm_target[:20]} │ ping: {ping_str} │ dnd {'on' if self.state.dnd else 'off'}  │ /back "
         else:
-            status = f" {clock} │ users: {user_count} │ ping: {ping_str} │ up: {uptime_str} │ dnd: {'on' if self.state.dnd else 'off'} "
+            status = f" {clock} │ users: {user_count} │ ping: {ping_str} │ up: {uptime_str} │ dnd: {'on' if self.state.dnd else 'off'}"
         stdscr.addstr(y, 0, status[: w - 1].ljust(w - 1), curses.A_DIM)
 
     def show_help(self, stdscr):
@@ -324,6 +324,7 @@ class UI:
         return ch in (10, 13)
 
     def run(self, stdscr):
+
         curses.cbreak()
         curses.curs_set(0)
         curses.use_default_colors()

@@ -2,6 +2,7 @@
 # TODO - strip new lines from chat box input so you cant just paste the whole bee movie script 
 import curses
 import sys
+import time
 
 from client.config import Config
 from client.state import ClientState
@@ -32,7 +33,6 @@ def main():
     network.connect()
     network.start_threads()
 
-    import time
     connect_timeout = 10.0
     deadline = time.monotonic() + connect_timeout
     while not state.authenticated and not state.auth_failed and time.monotonic() < deadline:

@@ -262,10 +262,12 @@ class UI:
         while True:
             for i, (u, status, ts) in enumerate(ul[: win_h - 4]):
                 try:
+                    # [admin] tag for users with admin privileges
+                    display_name = f"{u} [ADMIN]" if u in self.state.admins else u
                     ts_str = (
                         time.strftime("%m/%d %H:%M", time.localtime(ts)) if ts else "—"
                     )
-                    line = f" {u[:16]:16}  {status:8} {ts_str}"
+                    line = f" {display_name[:16]:16} {status:8} {ts_str}"
                     is_selected = i == sel
                     if is_selected:
                         attr = curses.color_pair(1) | curses.A_REVERSE
@@ -416,6 +418,10 @@ class UI:
             stdscr.vline(0, chat_w, "|", chat_h)
             for i, u in enumerate(user_snapshot[:chat_h]):
                 stdscr.addstr(i, chat_w + 2, u[: user_w - 2])
+            label = u 
+            if u in sef.state.admins:
+                label = f"{u} [ADMIN]"
+            stdscr.addstr(i, chat_w + 2, label[: user_w - 2])
 
             INPUT_Y = h - 3
             SEP_Y = h - 2

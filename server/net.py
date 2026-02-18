@@ -73,6 +73,9 @@ class NetworkManager:
             all_users.add(u)
         entries = []
         for u in sorted(all_users):
+
+            if self.state.is_banned(u):
+                continue 
             status = "online" if u in online else "offline"
             ts = last_dm.get(u, 0)
             entries.append(f"{u},{status},{ts}")

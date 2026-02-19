@@ -68,6 +68,17 @@ class NetworkManager:
         except Exception:
             pass
 
+    def send_user_stats(self, target_addr, username: str):
+        stats = self.state.get_user_stats(username)
+        if not stats:
+            return
+        payload = json.dumps(stats)
+        msg = f"[USER_STATS]|{payload}"
+        try:
+            self.sock.sendto(msg.encode(), target_addr)
+        except Exception:
+            pass
+
     def send_user_list_detailed(self, target_addr, requesting_username: str):
         online = set(info["username"] for info in self.state.clients.values())
         last_dm = self.state.get_last_dm_time_for_user(requesting_username)
@@ -497,7 +508,16 @@ class NetworkManager:
                 if msg == "[ping]":
                     self.handle_ping(addr)
                     continue
-
+                if msg.startswith("[REQ_USER_STATS]"):
+                    # format: "[REQ_USER_STATS]|<username>"
+                    parts = msg.split("|", 1)
+                    username = parts[1].strip() if len(parts) > 1 else None
+                    if not username:
+                        # fall back to the username for this addr, if known
+                        username = self.state.clients.get(addr, {}).get("username")
+                    if username:
+                        self.send_user_stats(addr, username)
+                    continue
                 if msg.startswith("[REQ_MAX_MSG_LEN]"):
                     self.send_max_message_len(addr)
                     continue

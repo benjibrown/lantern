@@ -113,7 +113,23 @@ class CommandHandler:
                     self.state.messages.append((f"[system] Do not disturb {status}", True))
                     self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
             return True
-        
+        # fetch user stats for the given user - if none, fetch self.
+        if msg.startswith("/stats"):
+            parts = msg.split(maxsplit=1)
+            target = parts[1].strip() if len(parts) > 1 else self.config.USERNAME
+            self.network.request_user_stats(target)
+
+            # let the user know we're requesting stats; the actual stats
+            # will be displayed when the server responds.
+            with self.state.lock:
+                notice = f"[system] Requesting stats for '{target}'..."
+                if self.state.current_view == "dm" and self.state.dm_target:
+                    self.state.append_dm(self.state.dm_target, notice, True)
+                else:
+                    self.state.messages.append((notice, True))
+                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+            return True
+
         #admin / moderation commands - handled in one block as all req token 
         if msg.startswith("/mute ") or msg.startswith("/unmute ") or msg.startswith("/ban "):
             parts = msg.split(maxsplit=1)
@@ -156,7 +172,7 @@ class CommandHandler:
             payload = f"{old_name}|{new_name}"
             self.network.send_admin_command("changeusername", payload)
             return True
-
+        
         return False
 
     def shutdown(self):
@@ -164,5 +180,4 @@ class CommandHandler:
         self.network.send_leave()
         self.network.close()
         sys.exit(0)
-
 

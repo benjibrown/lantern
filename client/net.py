@@ -58,6 +58,12 @@ class NetworkManager:
             (self.config.SERVER_HOST, self.config.SERVER_PORT),
         )
 
+    def request_user_stats(self, username: str):
+        self.sock.sendto(
+            f"[REQ_USER_STATS]|{username}".encode(),
+            (self.config.SERVER_HOST, self.config.SERVER_PORT),
+        )
+
     def send_dm(self, recipient: str, text: str):
         try:
             self.sock.sendto(
@@ -201,7 +207,45 @@ class NetworkManager:
                             self.state.users_detailed.append((u, status, ts))
                         self.state.users_detailed.sort(key=lambda x: -x[2])
                         continue
+                    if msg.startswith("[USER_STATS]|"):
+                        raw = msg.split("|", 1)[1]
+                        try:
+                            stats = json.loads(raw)
+                        except Exception:
+                            stats = None
 
+                        # keep raw stats on state in case other parts of the client
+                        # want to inspect them
+                        self.state.user_stats = stats
+
+                        # format a human-readable stats message
+                        if not stats:
+                            lines = ["[system] No stats available for that user."]
+                        else:
+                            username = stats.get("username", "?")
+                            is_admin = "yes" if stats.get("is_admin") else "no"
+                            is_banned = "yes" if stats.get("is_banned") else "no"
+                            is_muted = "yes" if stats.get("is_muted") else "no"
+                            total_msgs = stats.get("total_channel_messages", 0)
+                            lines = [
+                                f"[system] Stats for '{username}':",
+                                f"  Admin: {is_admin}",
+                                f"  Banned: {is_banned}",
+                                f"  Muted: {is_muted}",
+                                f"  Channel messages: {total_msgs}",
+                            ]
+
+                        if self.state.current_view == "dm" and self.state.dm_target:
+                            for line in lines:
+                                self.state.append_dm(self.state.dm_target, line, True)
+                        else:
+                            for line in lines:
+                                self.state.messages.append((line, True))
+                            self.state.messages[:] = self.state.messages[
+                                -self.config.MAX_MESSAGES :
+                            ]
+                        continue
+                        
                     # fetch max message length from server
                     if msg.startswith("[MAX_MSG_LEN]|"):
                         try:

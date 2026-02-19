@@ -281,3 +281,20 @@ class ServerState:
 
         self.save_all()
         return True
+    
+    def get_user_stats(self, username: str) -> dict:
+        # return dict with stats for a given user (not necessarily one requesting) - send their username, admin or not, banned?, muted?, total number of channel messages sent 
+        entry = self.users.get(username)
+        if entry is None:
+            return None
+        if isinstance(entry, dict):
+            return {
+                "username": username,
+                "is_admin": self.is_admin(username),
+                "is_banned": self.is_banned(username),
+                "is_muted": self.is_muted(username),
+                "total_channel_messages": sum(1 for msg in self.channel_messages if msg["sender"] == username),
+            }
+        # if hasnt met any of these if statements then return None 
+        return None 
+

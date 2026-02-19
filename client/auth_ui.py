@@ -5,6 +5,8 @@ import json
 import hashlib
 import secrets
 
+# set of banned characters - only _ and - are allowed as special characters, no spaces allowed 
+BANNED_CHARS = set(" !\"#$%&'()*+,./:;<=>?@[\\]^`{|}~<>")
 
 def _send_recv(host: str, port: int, msg: str, timeout=5.0):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -152,6 +154,12 @@ def run_auth_ui(stdscr, config):
                     continue
                 if not password:
                     error = "Password required"
+                    continue
+                if any(c in BANNED_CHARS for c in username):
+                    error = "Your username contains illegal characters"
+                    continue
+                if len(username) > 16:
+                    error = "Username too long (max 16 characters)"
                     continue
                 try:
                     if is_register:

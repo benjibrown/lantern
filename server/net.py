@@ -5,6 +5,10 @@ import threading
 from rich import print
 
 TIMEOUT = 15
+# set of banned characters - only _ and - are allowed as special characters, no spaces allowed 
+# this is checked server side and client side so users cannot just modify client code to bypass
+BANNED_CHARS = set(" !\"#$%&'()*+,./:;<=>?@[\\]^`{|}~<>")
+
 
 class NetworkManager:
     def __init__(self, host, port, state):
@@ -110,6 +114,19 @@ class NetworkManager:
             except Exception:
                 pass
             return
+        if any(c in BANNED_CHARS for c in username):
+            try:
+                self.sock.sendto("[REGISTER_FAIL]|Username contains illegal characters".encode(), addr)
+            except Exception:
+                pass
+            return
+        if len(username) > 16:
+            try:
+                self.sock.sendto("[REGISTER_FAIL]|Username too long (max 16 characters)".encode(), addr)
+            except Exception:
+                pass
+            return
+
 
 
         if self.state.register_user(username, password):
@@ -141,8 +158,13 @@ class NetworkManager:
                 pass
             return
         if self.state.is_banned(username):
+            reason = self.state.get_ban_reason(username)
+            if reason:
+                out = f"You are banned: {reason}"
+            else:
+                out = "You are banned from this server"
             try:
-                self.sock.sendto("[AUTH_FAIL]|User banned".encode(), addr)
+                self.sock.sendto(f"[AUTH_FAIL]|{out}".encode(), addr)
             except Exception:
                 pass
             return
@@ -314,7 +336,13 @@ class NetworkManager:
         command = command.lower().strip()
 
         if command in ("mute", "unmute", "ban"):
-            target = (rest or "").strip()
+            raw = (rest or "").strip()
+            target = raw 
+            ban_reason = None 
+            if command == "ban" and "|" in raw:
+                t, r = raw.split("|", 1) 
+                target = t.strip() 
+                ban_reason = r.strip() or None
             if not target:
                 try:
                     self.sock.sendto(f"[ADMIN_ERROR]|/{command} requires a target username".encode(), addr)
@@ -335,16 +363,27 @@ class NetworkManager:
                 self.state.set_muted(target, False)
                 info = f"[system] {actor} unmuted {target}"
             else:  # ban
-                self.state.set_banned(target, True)
+                self.state.set_banned(target, True, reason=ban_reason)
                 # drop any active connections for the banned user
                 kicked_addrs = []
                 for a, info_dict in list(self.state.clients.items()):
                     if info_dict.get("username") == target:
                         kicked_addrs.append(a)
+                                # construct a stable ban message that includes the optional reason
+                if ban_reason:
+                    banned_text = f"{ban_reason}"
+                else:
+                    # fall back to any stored reason, or a generic message
+                    stored_reason = self.state.get_ban_reason(target)
+                    if stored_reason:
+                        banned_text = f"{stored_reason}"
+                    else:
+                        banned_text = "None"
+
                 for a in kicked_addrs:
                     try:
                         self.sock.sendto(
-                            "[BANNED]|You have been banned from this server".encode(),
+                            "[BANNED]|{banned_text}".encode(),
                             a,
                         )
                     except Exception:
@@ -507,3 +546,6 @@ class NetworkManager:
 
             except Exception as e:
                 print("[red][ERROR][/red]", e)
+
+
+

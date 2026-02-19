@@ -8,6 +8,56 @@ import random
 # next time im not using curses lmao - textual??? it seems better but idk 
 # TODO - make UI nicer, colors, improve menus, dnd color highlighting, icons etc
 
+def show_ban_screen(stdscr, reason):
+    curses.curs_set(0)
+    curses.use_default_colors()
+    try:
+        curses.init_pair(1, curses.COLOR_RED, -1)
+    except curses.error:
+        pass 
+
+    art = [
+        r"▄▄▄▄▄▄▄     ▄▄▄▄   ▄▄▄    ▄▄▄ ▄▄▄    ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄   ",
+        r"███▀▀███▄ ▄██▀▀██▄ ████▄  ███ ████▄  ███ ███▀▀▀▀▀ ███▀▀██▄ ",
+        r"███▄▄███▀ ███  ███ ███▀██▄███ ███▀██▄███ ███▄▄    ███  ███ ",
+        r"███  ███▄ ███▀▀███ ███  ▀████ ███  ▀████ ███      ███  ███ ",
+        r"████████▀ ███  ███ ███    ███ ███    ███ ▀███████ ██████▀  ",
+        r"                                                           ",
+    ]
+    h, w = stdscr.getmaxyx()
+    stdscr.erase() 
+
+    art_height = len(art)
+    art_width = max(len(line) for line in art)
+    start_y = max(1, (h - art_height) // 2 - 2)
+    start_x = max(0, (w - art_width) // 2)
+
+    for i, line in enumerate(art):
+        try:
+            stdscr.addstr(start_y + i, start_x, line[: max(0, w - start_x)], curses.color_pair(1) | curses.A_BOLD)
+        except curses.error:
+            pass
+
+    reason_text = reason or "You have been banned from this server."
+    info_lines = [
+        "You have been banned from this server.",
+        f"Reason: {reason_text}",
+        "",
+        "Press any key to quit",
+    ]
+    y = start_y + art_height + 2
+    for line in info_lines:
+        try:
+            stdscr.addstr(y, max(0, (w - len(line)) // 2), line[: max(0, w - 2)])
+        except curses.error:
+            pass
+        y += 1
+
+    stdscr.refresh()
+    stdscr.nodelay(False)
+    stdscr.getch()
+
+
 
 class UI:
     def __init__(self, config, state, network, command_handler):
@@ -19,7 +69,8 @@ class UI:
         self.input_cursor = 0
         self.scroll_offset = 0
         self.dm_scroll_offset = 0
-
+    
+    
     def draw_status_bar(self, stdscr, h, w, y):
         now = time.time()
         uptime = int(now - self.state.start_time)
@@ -305,6 +356,67 @@ class UI:
         win.clear()
         stdscr.touchwin()
         stdscr.refresh()
+
+    def _prompt_text(self, stdscr, title: str, prompt: str, max_len: int = 256):
+        h, w = stdscr.getmaxyx()
+        lines = [title, "", prompt, "", ""]
+        win_h = 7
+        win_w = min(w - 4, max(len(prompt), len(title)) + 6)
+        y = (h - win_h) // 2
+        x = (w - win_w) // 2
+        win = curses.newwin(win_h, win_w, y, x)
+        win.border()
+        win.keypad(True)
+        win.nodelay(False)
+
+        try:
+            header_attr = curses.color_pair(2) | curses.A_BOLD
+        except curses.error:
+            header_attr = curses.A_BOLD
+
+        # static text
+        win.addstr(1, 2, title[: win_w - 4], header_attr)
+        win.addstr(2, 2, prompt[: win_w - 4])
+        win.addstr(win_h - 2, 2, "Enter: confirm  Esc: cancel"[: win_w - 4], curses.A_DIM)
+
+        buf = ""
+        cursor = 0
+
+        while True:
+            # draw input line
+            visible = buf[: win_w - 4]
+            win.addstr(3, 2, " " * (win_w - 4))
+            win.addstr(3, 2, visible)
+            win.move(3, 2 + min(cursor, win_w - 5))
+            win.refresh()
+
+            ch = win.getch()
+            if ch in (27, ord("q")):
+                return None
+            if ch in (10, 13):
+                return buf.strip()[:max_len]
+            if ch in (curses.KEY_BACKSPACE, 127, 8):
+                if cursor > 0:
+                    buf = buf[: cursor - 1] + buf[cursor:]
+                    cursor -= 1
+            elif ch == curses.KEY_LEFT:
+                if cursor > 0:
+                    cursor -= 1
+            elif ch == curses.KEY_RIGHT:
+                if cursor < len(buf):
+                    cursor += 1
+            elif 32 <= ch <= 126 and len(buf) < max_len:
+                c = chr(ch)
+                buf = buf[:cursor] + c + buf[cursor:]
+                cursor += 1
+
+    def prompt_ban_reason(self, stdscr, target: str):
+        prompt = f"Enter ban reason for '{target}' (optional):"
+        reason = self._prompt_text(stdscr, "Ban user", prompt, max_len=256)
+        if reason is None:
+            return None
+        return reason.strip()
+
 
     def confirm_exit(self, stdscr):
         h, w = stdscr.getmaxyx()

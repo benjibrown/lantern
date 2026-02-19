@@ -30,6 +30,9 @@ class ClientState:
         self.send_failed = False
         self.last_received_from_server = 0.0
         self.dnd = False
+        
+        self.banned = False 
+        self.ban_reason = ""
 
     def ensure_dm_conversation(self, other_user: str):
         with self.lock:

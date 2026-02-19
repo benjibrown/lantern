@@ -8,7 +8,7 @@ from client.config import Config
 from client.state import ClientState
 from client.net import NetworkManager
 from client.commands import CommandHandler
-from client.ui import UI
+from client.ui import UI, show_ban_screen
 from client.auth_ui import run_auth_ui
 
 
@@ -55,6 +55,13 @@ def main():
     except Exception as e:
         print(f"Fatal error: {e}")
         sys.exit(1)
+
+    if state.banned:
+        def banned_wrapper(stdscr):
+           show_ban_screen(stdscr, state.ban_reason) 
+
+        curses.wrapper(banned_wrapper)
+        sys.exit(0)
 
 
 if __name__ == "__main__":

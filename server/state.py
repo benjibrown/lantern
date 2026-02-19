@@ -196,6 +196,17 @@ class ServerState:
         if isinstance(entry, dict):
             return bool(entry.get("banned"))
         return False
+    
+    def get_ban_reason(self, username: str):
+
+        entry = self.users.get(username)
+        if isinstance(entry, dict):
+            reason = entry.get("ban_reason") 
+
+            if isinstance(reason, str) and reason.strip():
+                return reason.strip()
+        return None
+
 
     def is_muted(self, username: str) -> bool:
         entry = self.users.get(username)
@@ -212,13 +223,18 @@ class ServerState:
         # upgrade legacy plain-text entry to a structured dict, preserving password
         self.users[username] = {"legacy_password": entry, "banned": False, "muted": False}
 
-    def set_banned(self, username: str, banned: bool):
+    def set_banned(self, username: str, banned: bool, reason: str = ""):
         if username not in self.users:
             return
         self._ensure_user_dict(username)
         entry = self.users[username]
         if isinstance(entry, dict):
             entry["banned"] = banned
+            if banned:
+                if reason is not None:
+                    entry["ban_reason"] = reason.strip()[:256]
+                else:
+                    entry.pop("ban_reason", None)
         self.save_all()
 
     def set_muted(self, username: str, muted: bool):

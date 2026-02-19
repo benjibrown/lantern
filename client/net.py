@@ -274,16 +274,16 @@ class NetworkManager:
                             except Exception:
                                 self.state.pending_dm_history = None
                         continue
-                    # TODO - ban reasons, implemented server side and here but need to allow for it in the client. 
+                    # TODO - ban reasons, implemented server side and here but need to allow for it in the client.
+                    # client could technically delete this code but they would still be banned server side 
                     if msg.startswith("[BANNED]|"):
                         reason = msg.split("|", 1)[1] if "|" in msg else "You have been banned from this server"
 
                         with self.state.lock:
                                 # always send ban messages to main chat, even if in dm, since user is banned from server not just dm 
-                                self.state.messages.append((f"[system] {reason}", True))
-                                self.state.messages[:] = self.state.messages[
-                                    -self.config.MAX_MESSAGES :
-                                ]
+
+                                self.state.banned = True 
+                                self.state.ban_reason = reason
 
                         self.state.running = False
                         # TODO - before qutting, show a message with ban reason for 10s and like ascii art just for the fun of it
@@ -293,7 +293,7 @@ class NetworkManager:
                             pass
                         continue
 
-                    # admin command feedback from the server
+                    # admin command feedback from the server 
                     if msg.startswith("[ADMIN_ERROR]|"):
                         reason = msg.split("|", 1)[1] if "|" in msg else "Admin error"
                         # route system message

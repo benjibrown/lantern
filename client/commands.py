@@ -107,12 +107,14 @@ class CommandHandler:
             with self.state.lock:
                 self.state.dnd = not self.state.dnd
                 status = "on (notifications off)" if self.state.dnd else "off (notifications on)"
-                # TODO - fix for dm view 
-                self.state.messages.append((f"[system] Do not disturb {status}", True))
-                self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                if self.state.current_view == "dm" and self.state.dm_target:
+                    self.state.append_dm(self.state.dm_target, f"[system] Do not disturb {status}", True)
+                else:
+                    self.state.messages.append((f"[system] Do not disturb {status}", True))
+                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
             return True
         
-        #admin / moderation commands
+        #admin / moderation commands - handled in one block as all req token 
         if msg.startswith("/mute ") or msg.startswith("/unmute ") or msg.startswith("/ban "):
             parts = msg.split(maxsplit=1)
             if len(parts) != 2 or not parts[1].strip():
@@ -127,7 +129,15 @@ class CommandHandler:
                 return True
             target = parts[1].strip()
             cmd = parts[0][1:]  # strip leading '/'
-            self.network.send_admin_command(cmd, target)
+
+            payload = target 
+            if cmd == "ban":
+                reason = self.ui.prompt_ban_reason(stdscr, target)
+                if reason is None:  # User cancelled the ban
+                    return True 
+                payload = f"{target}|{reason}"
+
+            self.network.send_admin_command(cmd, payload)
             return True
 
         if msg.startswith("/changeusername"):

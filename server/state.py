@@ -182,7 +182,7 @@ class ServerState:
         self.sessions[username] = token
         return token
 
-    def get_session_token(self, username: str) -> str | None:
+    def get_session_token(self, username: str):
         return self.sessions.get(username)
 
     def clear_session(self, username: str):

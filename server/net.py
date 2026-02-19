@@ -383,7 +383,7 @@ class NetworkManager:
                 for a in kicked_addrs:
                     try:
                         self.sock.sendto(
-                            "[BANNED]|{banned_text}".encode(),
+                            f"[BANNED]|{banned_text}".encode(),
                             a,
                         )
                     except Exception:

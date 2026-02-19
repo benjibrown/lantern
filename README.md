@@ -1,47 +1,58 @@
-# Lantern 
+<div align='center'>
 
-A really niche TUI chat client
+<img src=https://iili.io/q2QXiWG.png alt="logo" width=800 height= />
 
-![ss](https://iili.io/qJSgXaa.png)
 
-# UNDER ACTIVE DEVELOPMENT - if anything breaks please make an issue or a PR
+<p>A lightweight TUI chat client designed for fast, distraction-free communication via your terminal.</p>
 
-## Setup
+<h4> <span> · </span> <a href="https://github.com/benjibrown/lantern/blob/master/README.md"> Documentation </a> <span> · </span> <a href="https://github.com/benjibrown/lantern/issues"> Report Bug </a> <span> · </span> <a href="https://github.com/benjibrown/lantern/issues"> Request Feature </a> </h4>
+
+
+</div>
+
+# Table of Contents
+
+- [About the Project](#star2-about-the-project)
+- [Contributing](#wave-contributing)
+
+
+## About the Project
+
+### Screenshots
+<div align="center"> <a href=""><img src="https://camo.githubusercontent.com/c51d369415ae42031c2f34277ab926ffad30af988c34265f35980be2d17303d6/68747470733a2f2f69696c692e696f2f714a53675861612e706e67" alt='image' width='800'/></a> </div>
+
+
+
+
+
+## Getting Started
 
 ### Prerequisites
-- Python 3.10 or higher
-- pip (Python package installer)
-- a brain 
+
+- Python
+- Pip package manager
+- a brain
+
 
 ### Installation
-```bash 
-git clone https://github.com/benjibrown/lantern.git
-cd lantern 
-pip3 install -r requirements.txt 
-```
 
-### Usage
-
-There are a couple things you need to know before running lantern. 
-
-Firstly, there is a server script that acts as the backend for the client. Atleast one instance of the server needs to be running for the client to work. You can run the server with the following command:
-```bash 
-python3 server.py
-```
-This will spin up a server on localhost:6000, which is also the default connection address for the client. This can be changed in the `serverconfig.json` file (WIP). 
-
-Once a sever is running, you can start the client with the following command:
+Install dependencies
 ```bash
-python3 client.py 
+pip install -r requirements.txt
 ```
-This will automatically connect to the server at localhost:6000. You can change which connection address the client uses by passing it as an argument when starting the client, like so:
-```bash 
-python3 client.py -s <server_ip_address> -p <server_port>
+Running a server
+```bash
+python server.py
 ```
-For the client to function, there must be a server running at the specified address and port. 
+Running the client
+```bash
+python client.py
+```
 
-After opening the client, you will be prompted to login or register. After that, you will be able to chat with other users who are connected to the same server. You will only need to login once, as your credentials will be saved in a local file - `.lantern_session`.
+# Details
 
+Lantern requires a server to be running at the configured host and port for clients to be able to connect and communicate. This can either be locally (using default server IP and port in client config) which will allow you to communicate across a LAN or by setting up the server on a public facing IP (eg using a VPS) or by tunnelling a port on your local network to a publicly accessible IP.
 
+## Contributing
 
-![Badge](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fbenjibrown%2Flantern&label=git&icon=lamp-fill&color=%23198754&message=&style=flat&tz=UTC)
+Just make a pull req. lol

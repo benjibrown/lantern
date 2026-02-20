@@ -190,7 +190,6 @@ class NetworkManager:
         self.state.set_pending_auth(addr, username)
         try:
             self.sock.sendto(f"[AUTH_OK]|{token}".encode(), addr)
-            print(token)
         except Exception:
             pass
         print(f"[cyan][~][/cyan] User authenticated: {username} from {addr}")

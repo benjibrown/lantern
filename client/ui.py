@@ -60,6 +60,19 @@ def show_ban_screen(stdscr, reason):
 
 
 class UI:
+
+    # command definitions for autocomplete 
+    COMMANDS = [
+        ("/exit", "Quit chat"),
+        ("/logout", "Log out and close")
+        ("/back", "Return to main channel")
+        ("/dm", "Open DM with user (usage: /dm username)"),
+        ("/panel", "List users to DM"),
+        ("/fetch", "Fetch system info (30s cooldown)"),
+        ("/dnd", "Toggle Do Not Disturb mode"),
+        ("/help", "Display help menu"),
+    ]
+
     def __init__(self, config, state, network, command_handler):
         self.config = config
         self.state = state

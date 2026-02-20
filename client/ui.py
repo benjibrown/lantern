@@ -314,8 +314,8 @@ class UI:
         while True:
             for i, (u, status, ts) in enumerate(ul[: win_h - 4]):
                 try:
-                    #Cursor - add [ADMIN] tag in the user picker
-                    display_name = f"[ADMIN] {u}" if u in self.state.admins else u
+
+                    display_name = f"{u} [ADMIN]" if u in self.state.admins else u
                     ts_str = (
                         time.strftime("%m/%d %H:%M", time.localtime(ts)) if ts else "—"
                     )
@@ -532,7 +532,7 @@ class UI:
             for i, u in enumerate(user_snapshot[:chat_h]):
                 label = u
                 if u in self.state.admins:
-                    label = f"[ADMIN] {u}"
+                    label = f"{u} [ADMIN]"
                 stdscr.addstr(i, chat_w + 2, label[: user_w - 2])
 
             INPUT_Y = h - 3

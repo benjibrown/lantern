@@ -207,6 +207,8 @@ class NetworkManager:
                             self.state.users_detailed.append((u, status, ts))
                         self.state.users_detailed.sort(key=lambda x: -x[2])
                         continue
+
+                    # TODO - output in a window instead of sending a message to main chat, show last online time etc 
                     if msg.startswith("[USER_STATS]|"):
                         raw = msg.split("|", 1)[1]
                         try:
@@ -214,10 +216,10 @@ class NetworkManager:
                         except Exception:
                             stats = None
 
-                        # keep raw stats on state in case other parts of the client
-                        # want to inspect them
+                        
+                        
                         self.state.user_stats = stats
-
+                        
                         # format a human-readable stats message
                         if not stats:
                             lines = ["[system] No stats available for that user."]

@@ -63,14 +63,21 @@ class UI:
 
     # command definitions for autocomplete 
     COMMANDS = [
-        ("/exit", "Quit chat"),
-        ("/logout", "Log out and close")
-        ("/back", "Return to main channel")
-        ("/dm", "Open DM with user (usage: /dm username)"),
+        ("/exit", "Exit the chat"),
+        ("/logout", "Log out and close"),
+        ("/back", "Return to main channel"),
+        ("/dm ", "Open DM with user"),
         ("/panel", "List users to DM"),
-        ("/fetch", "Fetch system info (30s cooldown)"),
-        ("/dnd", "Toggle Do Not Disturb mode"),
-        ("/help", "Display help menu"),
+        ("/fetch", "Send system info (30s cooldown)"),
+        ("/dnd", "Toggle do not disturb"),
+        ("/stats", "Show user statistics"),
+        ("/stats <user>", "Show stats for specific user"),
+        ("/mute ", "Mute a user (admin)"),
+        ("/unmute ", "Unmute a user (admin)"),
+        ("/ban ", "Ban a user (admin)"),
+        ("/changeusername ", "Change username (admin)"),
+        ("/channel", "Switch to channel view"),
+        ("/help", "Show help menu"),
     ]
 
     def __init__(self, config, state, network, command_handler):
@@ -82,8 +89,74 @@ class UI:
         self.input_cursor = 0
         self.scroll_offset = 0
         self.dm_scroll_offset = 0
+        
+        # autocomp stuff 
+        self.autocomplete_active = False 
+        self.autocomplete_matches = []
+        self.autocomplete_selected = 0
+
+
+    def get_autocomp_matches(self, text: str):
+        if not text.startswith("/"):
+            return []
+
+        text_lower = text.lower() 
+        matches = []
+        for cmd, desc in self.COMMANDS:
+            if cmd.lower().startswith(text_lower):
+                matches.append((cmd, desc))
+            elif text_lower in cmd.lower():
+                matches.append((cmd, desc))
+        return matches[:8] # max of 8 suggestions, can change later
+
     
-    
+    def draw_autocomplete(self, stdscr, input_y, chat_w, prompt):
+        if not self.autocomplete_active or not self.autocomplete_matches:
+            return
+        
+        h, w = stdscr.getmaxyx() 
+        max_visible = min(len(self.autocomplete_matches), 10) 
+        win_h = max_visible 
+        win_w = min(chat_w - 2, 50)
+
+        win_y = input_y - win_h - 1 
+        if win_y < 0: 
+            win_y = input_y + 1
+            win_h = min(max_visible, h - win_y - 2)
+            max_visible = win_h 
+
+        win_x = len(prompt)
+        win_x = min(win_x, w - win_w - 1)
+
+        for i in range(max_visible):
+            y = win_y + i + 1 
+            if y >= h: 
+                break 
+
+            cmd, desc = self.autocomplete_matches[i]
+            is_selected = i == self.autocomplete_selected 
+
+            try: 
+                stdscr.addstr(y, win_x, " " * win_w)
+            except curses.error:
+                pass
+
+            if is_selected:
+                display = f" {cmd:<18} {desc}"[:win_w - 2]
+                try: 
+                    selected_attr = curses.color_pair(2) | curses.A_REVERSE
+                    stdscr.addstr(y, win_x, display, selected_attr)
+                except curses.error:
+                    pass
+            else:
+                # draw cmd normally
+                display = f" {cmd:<18} {desc}"[:win_w - 2]
+                try:
+                    stdscr.addstr(y, win_x, display, curses.A_NORMAL)
+                except curses.error:
+                    pass 
+                
+
     def draw_status_bar(self, stdscr, h, w, y):
         now = time.time()
         uptime = int(now - self.state.start_time)
@@ -584,7 +657,10 @@ class UI:
             except curses.error:
                 pass
             stdscr.hline(SEP_Y, 0, curses.ACS_HLINE, w)
+            # draw status bar 
             self.draw_status_bar(stdscr, h, w, y=STATUS_Y)
+            # draw autocomplete if active 
+            self.draw_autocomplete(stdscr, INPUT_Y, chat_w, prompt)
             stdscr.refresh()
             try:
                 ch = stdscr.getch()
@@ -593,6 +669,11 @@ class UI:
                     continue
                 # ---- double escape to quit immediately ----
                 if ch == 27:
+                    # when autocomplete active, esc closes it if u dont want it to show 
+                    if self.autocomplete_active:
+                        self.autocomplete_active = False
+                        self.autocomplete_matches = []
+                        continue
                     ch2 = stdscr.getch()
                     if ch2 == 27:
                         self.command_handler.shutdown()
@@ -638,12 +719,22 @@ class UI:
                     else self.scroll_offset
                 )
                 if ch == curses.KEY_UP:
+                    # nav autocomplete if active 
+                    if self.autocomplete_active and self.autocomplete_matches:
+                        self.autocomplete_selected = (self.autocomplete_selected - 1) % len(self.autocomplete_matches)
+                        continue
+
                     if view == "dm" and dm_target:
                         self.dm_scroll_offset += 1
                     else:
                         self.scroll_offset += 1
                     continue
                 if ch == curses.KEY_DOWN:
+                    # nav autocomplete if active 
+                    if self.autocomplete_active and self.autocomplete_matches:
+                        self.autocomplete_selected = (self.autocomplete_selected + 1) % len(self.autocomplete_matches)
+                        continue
+
                     if view == "dm" and dm_target and self.dm_scroll_offset > 0:
                         self.dm_scroll_offset -= 1
                     elif not (view == "dm" and dm_target) and self.scroll_offset > 0:
@@ -651,6 +742,15 @@ class UI:
                     continue
 
                 if ch in (10, 13):
+
+                    if self.autocomplete_active and self.autocomplete_matches:
+                        selected_cmd = self.autocomplete_matches[self.autocomplete_selected][0]
+                        self.input_buf = selected_cmd # + " " # add space for convenience, will test
+                        self.input_cursor = len(self.input_buf)
+                        self.autocomplete_active = False
+                        self.autocomplete_matches = []
+                        continue
+
                     self.input_cursor = 0
                     msg = self.input_buf.strip()
                     self.input_buf = ""
@@ -704,6 +804,17 @@ class UI:
                             + self.input_buf[self.input_cursor :]
                         )
                         self.input_cursor -= 1
+
+                    if self.input_buf.startswith("/"):
+                        self.autocomplete_matches = self.get_autocomp_matches(self.input_buf)
+                        if self.autocomplete_matches:
+                            self.autocomplete_active = True
+                            self.autocomplete_selected = 0
+                        else:
+                            self.autocomplete_active = False
+                    else:
+                        self.autocomplete_active = False 
+                        self.autocomplete_matches = [] 
                 elif ch == curses.KEY_DC:
                     if self.input_cursor < len(self.input_buf):
                         self.input_buf = (
@@ -734,5 +845,23 @@ class UI:
                         + self.input_buf[self.input_cursor :]
                     )
                     self.input_cursor += 1
+
+                    if self.input_buf.startswith("/"):
+                        self.autocomplete_matches = self.get_autocomp_matches(self.input_buf)
+                        if self.autocomplete_matches:
+                            self.autocomplete_active = True
+                            self.autocomplete_selected = 0
+                        else:
+                            self.autocomplete_active = False
+                    else:
+                        self.autocomplete_active = False
+                        self.autocomplete_matches = []
+                elif ch == 9:  # tab cycles 
+                    if self.autocomplete_active and self.autocomplete_matches:
+                        self.autocomplete_selected = (self.autocomplete_selected + 1) % len(self.autocomplete_matches)
+                        continue
+                elif ch == 27:  
+                    # let double esc handler do its thing
+                    pass
             except Exception:
                 pass

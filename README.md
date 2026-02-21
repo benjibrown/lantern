@@ -2,7 +2,7 @@
 
 # Lantern
 
-
+A curses based chat client and server.
 </div>
 
 

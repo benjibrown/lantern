@@ -28,7 +28,7 @@ class CommandHandler:
         if msg == "/help":
             self.ui.show_help(stdscr)
             return True
-
+        # TODO - server side cooldown control
         if msg == "/fetch":
             now = time.time()
             if now - self.last_fetch < self.config.FETCH_COOLDOWN:

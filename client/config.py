@@ -57,7 +57,6 @@ class Config:
         self.MAX_MESSAGE_LEN = 400
         self.MAX_INPUT_LEN = 300
         self.MAX_MESSAGES = 500
-        self.FETCH_COOLDOWN = 30
         self.SERVER_RESPONSE_TIMEOUT = 15
 
     def load_config(self, path):

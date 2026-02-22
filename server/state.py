@@ -28,6 +28,9 @@ class ServerState:
         self._dm_key = lambda a, b: tuple(sorted([a, b]))
 
         self.admins = self._load_admins()  # set of usernames
+        self.fetch_cooldown = self._load_fetch_cooldown()
+
+        self.fetch_last = {}
 
         # DEFAULT CONFIG
         self.MAX_MSG_LEN = 400 # shared with client during runtime, TODO - put in config file 
@@ -72,6 +75,16 @@ class ServerState:
             except Exception:
                 pass
         return set()
+       
+    def _load_fetch_cooldown(self):
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r") as f:
+                    data = json.load(f)
+                    return int(data.get("fetch_cooldown"))
+            except Exception:
+                pass
+        return 30 # default cooldown if fetch_cooldown missing
 
     def save_admins(self):
         data = {"admins": sorted(self.admins)}

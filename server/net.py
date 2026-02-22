@@ -475,6 +475,31 @@ class NetworkManager:
         except Exception:
             pass
 
+    def handle_req_fetch(self, addr):
+        client_info = self.state.clients.get(addr)
+        if not client_info:
+            return 
+        username = client_info.get("username")
+        if not username:
+            return 
+        cooldown = self.state.fetch_cooldown 
+        if cooldown > 0:
+            now = time.time() 
+            last = self.state.fetch_last.get(username, 0)
+            remaining = cooldown - (now - last)
+            if remaining > 0:
+                try:
+                    self.sock.sendto(f"[FETCH_COOLDOWN]|{int(remaining)}".encode(), addr)
+                except Exception:
+                    pass
+                return
+            self.state.fetch_last[username] = time.time() 
+            try:
+                self.sock.sendto(b"[FETCH_OK]", addr)
+            except Exception:
+                pass
+
+
     def cleanup_loop(self):
         while True:
             time.sleep(5)
@@ -556,6 +581,10 @@ class NetworkManager:
 
                 if msg.startswith("[ADMIN_CMD]|"):
                     self.handle_admin_cmd(msg, addr)
+                    continue
+
+                if msg.startswith("[REQ_FETCH]"):
+                    self.handle_req_fetch(addr)
                     continue
 
                 if msg.startswith("["):

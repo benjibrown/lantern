@@ -79,6 +79,14 @@ class NetworkManager:
             f"[REQ_DM_HISTORY]|{other_user}".encode(),
             (self.config.SERVER_HOST, self.config.SERVER_PORT),
         )
+    # two ways i can send stuff 
+    # b"...." - convert to bytes client side 
+    # .encode() - same thing lol
+    def request_fetch(self):
+        self.sock.sendto(
+            b"[REQ_FETCH]",
+            (self.config.SERVER_HOST, self.config.SERVER_PORT),
+        )
 
     def request_max_msg_len(self):
         self.sock.sendto(
@@ -254,6 +262,35 @@ class NetworkManager:
                             self.config.MAX_MESSAGE_LEN = int(msg.split("|", 1)[1])
                         except Exception:
                             pass
+                        continue
+                    
+                    if msg == "[FETCH_OK]":
+                        info = self.system_fetch()
+                        if self.state.current_view == "dm" and self.state.dm_target:
+                            self.state.append_dm(self.state.dm_target, "system", True)
+                            for k, v in info.items():
+                                self.state.append_dm(self.state.dm_target, f"  {k}: {v}", True)
+                        else:
+                            self.state.messages.append(("system", True))
+                            for k, v in info.items():
+                                self.state.messages.append((f"  {k}: {v}", True))
+                        if self.state.current_view == "dm" and self.state.dm_target:
+                            self.send_dm(self.state.dm_target, "system")
+                            for k, v in info.items():
+                                self.send_dm(self.state.dm_target, f"  {k}: {v}")
+                        else:
+                            self.send_message(f"[{self.config.USERNAME}] system")
+                            for k, v in info.items():
+                                self.send_message(f"  {k}: {v}")
+                        continue
+
+                    if msg.startswith("[FETCH_COOLDOWN]|"):
+                        remaining = msg.split("|", 1)[1]
+                        notice = f"[system] fetch cooldown ({remaining}s remaining)"
+                        if self.state.current_view == "dm" and self.state.dm_target:
+                            self.state.append_dm(self.state.dm_target, notice, True)
+                        else:
+                            self.state.messages.append((notice, True))
                         continue
 
                     if msg.startswith("[DM]|"):

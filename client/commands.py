@@ -1,4 +1,3 @@
-import time
 import sys
 
 
@@ -8,7 +7,6 @@ class CommandHandler:
         self.state = state
         self.network = network
         self.ui = ui
-        self.last_fetch = 0
 
     def handle_command(self, msg, stdscr):
         if msg == "/exit":
@@ -30,36 +28,7 @@ class CommandHandler:
             return True
         # TODO - server side cooldown control
         if msg == "/fetch":
-            now = time.time()
-            if now - self.last_fetch < self.config.FETCH_COOLDOWN:
-                with self.state.lock:
-                    if self.state.current_view == "dm" and self.state.dm_target:
-                        self.state.append_dm(self.state.dm_target, f"[system] fetch cooldown ({int(self.config.FETCH_COOLDOWN - (now - self.last_fetch))}s remaining)", True)
-                    else:
-                        self.state.messages.append((f"[system] fetch cooldown ({int(self.config.FETCH_COOLDOWN - (now - self.last_fetch))}s remaining)", True))
-                return True
-                                
-
-            self.last_fetch = now
-            info = self.network.system_fetch()
-
-            with self.state.lock:
-                if self.state.current_view == "dm" and self.state.dm_target:
-                    self.state.append_dm(self.state.dm_target, "system", True)
-                    for k, v in info.items():
-                        self.state.append_dm(self.state.dm_target, f"  {k}: {v}", True)
-                else:
-                    self.state.messages.append(("system", True))
-                    for k, v in info.items():
-                        self.state.messages.append((f"  {k}: {v}", True))
-            if self.state.current_view == "dm" and self.state.dm_target:
-                self.network.send_dm(self.state.dm_target, "system")
-                for k, v in info.items():
-                    self.network.send_dm(self.state.dm_target, f"  {k}: {v}")
-            else:
-                self.network.send_message(f"[{self.config.USERNAME}] system")
-                for k, v in info.items():
-                    self.network.send_message(f"  {k}: {v}")
+            self.network.request_fetch()
             return True
 
         if msg == "/channel" or msg == "/back":

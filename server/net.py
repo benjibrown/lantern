@@ -3,6 +3,7 @@ import socket
 import time
 import threading
 from rich import print
+from frame import send_msg, recv_msg
 
 TIMEOUT = 15
 # set of banned characters - only _ and - are allowed as special characters, no spaces allowed 

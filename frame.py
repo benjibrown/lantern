@@ -29,3 +29,20 @@ def send_msg(sock: socket.socket, text: str):
     sock.sendall(len(data).to_bytes(4, "big") + data)
 
 
+def recv_msg(sock: socket.socket):
+    # recv a message 
+    raw_len = _recv_exact(sock, 4)
+    if raw_len is None:
+        return None
+    length = int.from_bytes(raw_len, "big")
+    if length > MAX_MESSAGE_BYTES:
+        return None # reject big messages 
+    data = _recv_exact(sock, length)
+    if data is None:
+        return None
+    return data.decode(errors="ignore")
+
+
+
+
+

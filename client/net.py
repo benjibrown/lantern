@@ -420,8 +420,8 @@ class NetworkManager:
                         -self.config.MAX_MESSAGES :
                     ]
                     # TODO - ANSII detection for focus - only show noti if window not focused, this is fine for now, if u hate notis run /dnd or ctrl+d
-                   '''
-                   if not is_self and not self.state.dnd:
+                    '''
+                    if not is_self and not self.state.dnd:
                         try:
                             if platform.system() == "Darwin":
                                 subprocess.run(

@@ -3,6 +3,7 @@ import time
 import textwrap
 import subprocess
 import random
+import sys
 
 # ------ UI class ------
 # next time im not using curses lmao - textual??? it seems better but idk 

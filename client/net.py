@@ -4,6 +4,7 @@ import time
 import platform
 import subprocess
 import json
+
 from frame import send_msg, recv_msg
 
 
@@ -393,23 +394,22 @@ class NetworkManager:
                     self.state.messages[:] = self.state.messages[
                         -self.config.MAX_MESSAGES :
                     ]
-                    # TODO - ANSII detection for focus - only show noti if window not focused, this is fine for now, if u hate notis run /dnd or ctrl+d
-                    '''
+                    # notify on new messages unless dnd is on
                     if not is_self and not self.state.dnd:
                         try:
                             if platform.system() == "Darwin":
-                                subprocess.run(
-                                    [
-                                        "osascript",
-                                        "-e",
-                                        f'display notification "{msg[:50]}" with title "New Message"',
-                                    ]
+                                subprocess.Popen(
+                                    ["osascript", "-e", f'display notification "{msg[:80]}" with title "Lantern"'],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 )
                             elif platform.system() == "Linux":
-                                subprocess.run(["notify-send", "New Message", msg[:50]])
+                                safe_msg = msg[:80].replace("\\", "")
+                                subprocess.Popen(
+                                    ["notify-send", "Lantern", safe_msg, "-t", "4000"],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                )
                         except Exception:
                             pass
-                    '''
 
             except Exception:
                 time.sleep(0.1)

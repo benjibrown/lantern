@@ -14,6 +14,11 @@ class CommandHandler:
                 self.shutdown()
             return True
 
+        if msg == "/clear":
+            with self.state.lock:
+                self.state.messages.clear()
+            return True
+
         if msg == "/logout":
             if self.ui.confirm_exit(stdscr):
                 self.config.clear_session()

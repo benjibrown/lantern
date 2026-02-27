@@ -4,17 +4,19 @@ import time
 import json
 import hashlib
 import secrets
+from frame import send_msg, recv_msg
 
 # set of banned characters - only _ and - are allowed as special characters, no spaces allowed 
 BANNED_CHARS = set(" !\"#$%&'()*+,./:;<=>?@[\\]^`{|}~<>")
 
 def _send_recv(host: str, port: int, msg: str, timeout=5.0):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # single tcp req/resp for login/reg
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(timeout)
     try:
-        sock.sendto(msg.encode(), (host, port))
-        data, _ = sock.recvfrom(4096)
-        return data.decode(errors="ignore").strip()
+        sock.connect((host, port))
+        send_msg(sock, msg)
+        return recv_msg(sock) or ""
     finally:
         sock.close()
 

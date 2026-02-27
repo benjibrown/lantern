@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import secrets
+import threading
 import time
 
 HISTORY_FILE = "server/messages.json"
@@ -31,7 +32,7 @@ class ServerState:
         self.fetch_cooldown = self._load_fetch_cooldown()
 
         self.fetch_last = {}
-
+        self._save_lock = threading.Lock()
         # DEFAULT CONFIG
         self.MAX_MSG_LEN = 400 # shared with client during runtime, TODO - put in config file 
 
@@ -97,10 +98,11 @@ class ServerState:
             "channel": self.channel_messages[-MAX_CHANNEL_MESSAGES:],
             "dm": self.dm_conversations,
         }
-        with open(HISTORY_FILE, "w") as f:
-            json.dump(data, f)
-        with open(USERS_FILE, "w") as f:
-            json.dump(self.users, f)
+        with self._save_lock:
+            with open(HISTORY_FILE, "w") as f:
+                json.dump(data, f)
+            with open(USERS_FILE, "w") as f:
+                json.dump(self.users, f)
 
     def validate_user(self, username: str, password: str) -> bool:
         if username not in self.users:

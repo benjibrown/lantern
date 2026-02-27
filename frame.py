@@ -1,4 +1,5 @@
 # yes, im restructuring lantern so it uses TCP not UDP 
+
 # i fear that udp has made be lose more brain cells than packets it has lost# which is a lot
 
 import socket 

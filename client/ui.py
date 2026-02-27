@@ -75,6 +75,7 @@ class UI:
         ("/mute ", "Mute a user (admin)"),
         ("/unmute ", "Unmute a user (admin)"),
         ("/ban ", "Ban a user (admin)"),
+        ("/unban ", "Unban a user (admin)"),
         ("/changeusername ", "Change username (admin)"),
         ("/channel", "Switch to channel view"),
         ("/help", "Show help menu"),

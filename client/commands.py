@@ -100,15 +100,15 @@ class CommandHandler:
             return True
 
         #admin / moderation commands - handled in one block as all req token 
-        if msg.startswith("/mute ") or msg.startswith("/unmute ") or msg.startswith("/ban "):
+        if msg.startswith("/mute ") or msg.startswith("/unmute ") or msg.startswith("/ban ") or msg.startswith("/unban "):
             parts = msg.split(maxsplit=1)
             if len(parts) != 2 or not parts[1].strip():
                 with self.state.lock:
                     if self.state.current_view == "dm" and self.state.dm_target:
-                        self.state.append_dm(self.state.dm_target, "[system] Usage: /mute <user>, /unmute <user>, /ban <user>", True)
+                        self.state.append_dm(self.state.dm_target, "[system] Usage: /mute <user>, /unmute <user>, /ban <user>, /unban <user>", True)
                     else:
                         self.state.messages.append(
-                        ("[system] Usage: /mute <user>, /unmute <user>, /ban <user>", True)
+                        ("[system] Usage: /mute <user>, /unmute <user>, /ban <user>, /unban <user>", True)
                     )
                         self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                 return True

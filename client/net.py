@@ -4,96 +4,74 @@ import time
 import platform
 import subprocess
 import json
+from frame import send_msg, recv_msg
 
 
 class NetworkManager:
     def __init__(self, config, state):
         self.config = config
         self.state = state
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.setblocking(False)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._send_lock = threading.Lock()  # guards all writes to self.sock
         self.last_ping_sent = 0.0
         self.last_ping_recv = 0.0
         self.ping_ms = None
 
+    def _send(self, msg: str):
+        # all sends go through here to avoid concurrent write races between threads
+        # peak niche chat lol
+        with self._send_lock:
+            send_msg(self.sock, msg)
+
     def connect(self):
-        self.sock.sendto(
-            f"[LOGIN]|{self.config.USERNAME}|{self.config.PASSWORD}".encode(),
-            (self.config.SERVER_HOST, self.config.SERVER_PORT),
-        )
+        try:
+            self.sock.connect((self.config.SERVER_HOST, self.config.SERVER_PORT))
+            self._send(f"[LOGIN]|{self.config.USERNAME}|{self.config.PASSWORD}")
+        except OSError:
+            with self.state.lock:
+                self.state.auth_failed = True
 
     def send_join(self):
-        self.sock.sendto(
-            f"[JOIN]|{self.config.USERNAME}".encode(),
-            (self.config.SERVER_HOST, self.config.SERVER_PORT),
-        )
+        self._send(f"[JOIN]|{self.config.USERNAME}")
 
     def send_message(self, msg):
         try:
-            self.sock.sendto(
-                msg.encode(), (self.config.SERVER_HOST, self.config.SERVER_PORT)
-            )
+            self._send(msg)
         except OSError:
             with self.state.lock:
                 self.state.send_failed = True
 
     def send_leave(self):
         try:
-            self.sock.sendto(
-                f"[LEAVE]|{self.config.USERNAME}".encode(),
-                (self.config.SERVER_HOST, self.config.SERVER_PORT),
-            )
+            self._send(f"[LEAVE]|{self.config.USERNAME}")
         except Exception:
             pass
 
     def request_user_list(self):
-        self.sock.sendto(
-            f"[REQ_USERS]|{self.config.USERNAME}".encode(),
-            (self.config.SERVER_HOST, self.config.SERVER_PORT),
-        )
+        self._send(f"[REQ_USERS]|{self.config.USERNAME}")
 
     def request_users_detailed(self):
-        self.sock.sendto(
-            f"[REQ_USERS_DETAILED]|{self.config.USERNAME}".encode(),
-            (self.config.SERVER_HOST, self.config.SERVER_PORT),
-        )
+        self._send(f"[REQ_USERS_DETAILED]|{self.config.USERNAME}")
 
     def request_user_stats(self, username: str):
-        self.sock.sendto(
-            f"[REQ_USER_STATS]|{username}".encode(),
-            (self.config.SERVER_HOST, self.config.SERVER_PORT),
-        )
+        self._send(f"[REQ_USER_STATS]|{username}")
 
     def send_dm(self, recipient: str, text: str):
         try:
-            self.sock.sendto(
-                f"[DM]|{recipient}|{text}".encode(),
-                (self.config.SERVER_HOST, self.config.SERVER_PORT),
-            )
+            self._send(f"[DM]|{recipient}|{text}")
         except OSError:
             with self.state.lock:
                 self.state.send_failed = True
 
     def request_dm_history(self, other_user: str):
-        self.sock.sendto(
-            f"[REQ_DM_HISTORY]|{other_user}".encode(),
-            (self.config.SERVER_HOST, self.config.SERVER_PORT),
-        )
-    # two ways i can send stuff 
-    # b"...." - convert to bytes client side 
-    # .encode() - same thing lol
+        self._send(f"[REQ_DM_HISTORY]|{other_user}")
+
     def request_fetch(self):
-        self.sock.sendto(
-            b"[REQ_FETCH]",
-            (self.config.SERVER_HOST, self.config.SERVER_PORT),
-        )
+        self._send("[REQ_FETCH]")
 
     def request_max_msg_len(self):
-        self.sock.sendto(
-            f"[REQ_MAX_MSG_LEN]|{self.config.USERNAME}".encode(),
-            (self.config.SERVER_HOST, self.config.SERVER_PORT),
-        )
-    
+        self._send(f"[REQ_MAX_MSG_LEN]|{self.config.USERNAME}")
+
     def send_admin_command(self, command: str, payload: str):
         if not self.state.session_token:
             # if we do not have a token yet, the server will not accept admin commands
@@ -110,16 +88,13 @@ class NetworkManager:
                     ("[system] Cannot run admin command: no session token from server", True)
                 )
             return
-        full = f"[ADMIN_CMD]|{command}|{self.config.USERNAME}|{self.state.session_token}|{payload}"
-        self.send_message(full)
+        self._send(f"[ADMIN_CMD]|{command}|{self.config.USERNAME}|{self.state.session_token}|{payload}")
 
     def keepalive(self):
         while self.state.running:
             try:
                 self.last_ping_sent = time.time()
-                self.sock.sendto(
-                    b"[ping]", (self.config.SERVER_HOST, self.config.SERVER_PORT)
-                )
+                self._send("[ping]")
                 time.sleep(5)
             except Exception:
                 pass
@@ -127,11 +102,12 @@ class NetworkManager:
     def receive(self):
         while self.state.running:
             try:
-                data, _ = self.sock.recvfrom(4096)
-                msg = data.decode(errors="ignore").strip()
-
-                if not msg:
-                    continue
+                msg = recv_msg(self.sock)
+                if msg is None:
+                    # server closed the connection
+                    with self.state.lock:
+                        self.state.running = False
+                    break
 
                 with self.state.lock:
                     self.state.last_received_from_server = time.time()
@@ -224,8 +200,6 @@ class NetworkManager:
                         except Exception:
                             stats = None
 
-                        
-                        
                         self.state.user_stats = stats
                         
                         # format a human-readable stats message
@@ -359,8 +333,8 @@ class NetworkManager:
                             except Exception:
                                 self.state.pending_dm_history = None
                         continue
-                    # TODO - ban reasons, implemented server side and here but need to allow for it in the client.
-                    # client could technically delete this code but they would still be banned server side 
+
+                   
                     if msg.startswith("[BANNED]|"):
                         reason = msg.split("|", 1)[1] if "|" in msg else "You have been banned from this server"
 
@@ -437,8 +411,6 @@ class NetworkManager:
                             pass
                     '''
 
-            except BlockingIOError:
-                time.sleep(0.03)
             except Exception:
                 time.sleep(0.1)
 
@@ -459,3 +431,4 @@ class NetworkManager:
             "Host": platform.node(),
             "Arch": platform.machine(),
         }
+

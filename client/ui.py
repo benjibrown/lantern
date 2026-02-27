@@ -780,6 +780,7 @@ class UI:
                             else:
                                 self.state.append_dm(dm_target, out, True)
                     else:
+                        # need to add stuff here 
                         out = f"[{self.config.USERNAME}]: {msg}"
                         self.network.send_message(out)
                         with self.state.lock:

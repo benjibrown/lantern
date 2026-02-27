@@ -283,7 +283,7 @@ class NetworkManager:
                             self.state.append_dm(
                                 from_user, f"[{from_user}]: {text}", False
                             )
-                            '''
+                            
                             if not self.state.dnd:
                                 try:
                                     if platform.system() == "Darwin":
@@ -304,7 +304,7 @@ class NetworkManager:
                                         )
                                 except Exception:
                                     pass
-                            '''
+                            
                         continue
 
                     if msg.startswith("[DM_FAIL]|"):

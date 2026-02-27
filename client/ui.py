@@ -684,10 +684,8 @@ class UI:
                 # ---- keybinds ----
                 # - ord('a') - caps lock fix
 
-                # help menu for ctrl + h
-                if ch in (8, 127) and curses.keyname(ch) == b"^H":
-                    self.show_help(stdscr)
-                    continue
+                # help menu for ctrl + h - ensure fixed on widnows, doesnt trigger when pressing backspace lol
+                # REMOVED TEMP
                 # ctrl + / for keybinds
                 if ch in (31, ord("_")):
                     self.show_keybinds(stdscr)

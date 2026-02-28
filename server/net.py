@@ -209,7 +209,7 @@ class NetworkManager:
         if self.state.is_muted(sender):
             self._send(addr, "[ADMIN_ERROR]|You are muted and cannot send to the main channel")
             return
-        print(f"[purple][>][/purple] {sender}: {msg}")
+        print(f"[purple][>][/purple] {sender} {msg}")
         self.state.add_channel_message(sender, msg)
         self.broadcast(msg, exclude_addr=addr)
 

@@ -2,5 +2,5 @@
   "admins": [
     "benji"
   ],
-  "fetch_cooldown": 60
+  "fetch_cooldown": 30
 }

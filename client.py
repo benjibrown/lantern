@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # TODO - strip new lines from chat box input so you cant just paste the whole bee movie script 
 import curses
 import sys

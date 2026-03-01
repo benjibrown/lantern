@@ -308,6 +308,13 @@ class NetworkManager:
                         continue
 
                     if msg.startswith("[DM_FAIL]|"):
+                        reason = msg.split("|", 1)[1] if "|" in msg else "DM failed"
+                        notice = f"[system] {reason}"
+                        if self.state.current_view == "dm" and self.state.dm_target:
+                            self.state.append_dm(self.state.dm_target, notice, True)
+                        else:
+                            self.state.messages.append((notice, True))
+                            self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                         continue
 
                     if msg.startswith("[DM_HISTORY]|"):

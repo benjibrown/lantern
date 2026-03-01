@@ -57,14 +57,6 @@ class CommandHandler:
                     else:
                         self.state.messages.append(("[system] cannot DM yourself", True))
                 return True
-            if target not in self.state.users:
-                with self.state.lock:
-                    if self.state.current_view == "dm" and self.state.dm_target:
-                        self.state.append_dm(self.state.dm_target, f"[system] user '{target}' not found", True)
-                    else:
-                        self.state.messages.append((f"[system] user '{target}' not found", True))
-                return True
-
             with self.state.lock:
                 self.state.dm_target = target
                 self.state.current_view = "dm"

@@ -209,12 +209,20 @@ class NetworkManager:
         if self.state.is_muted(sender):
             self._send(addr, "[ADMIN_ERROR]|You are muted and cannot send to the main channel")
             return
+        now = time.time()
+        last = client_info.get("last_msg", 0)
+        if self.state.msg_rate_limit > 0 and (now - last) < self.state.msg_rate_limit:
+            wait = round(self.state.msg_rate_limit - (now - last), 1)
+            self._send(addr, f"[RATE_LIMITED]|{wait}")
+            return
+        client_info["last_msg"] = now
         print(f"[purple][>][/purple] {sender} {msg}")
         self.state.add_channel_message(sender, msg)
         self.broadcast(msg, exclude_addr=addr)
 
     def handle_dm(self, msg, addr):
-        sender = self.state.clients.get(addr, {}).get("username")
+        sender_info = self.state.clients.get(addr, {})
+        sender = sender_info.get("username")
         if not sender:
             return
         parts = msg.split("|", 2)
@@ -227,6 +235,13 @@ class NetworkManager:
         if not self.state.user_exists(recipient):
             self._send(addr, f"[DM_FAIL]|User {recipient} not found")
             return
+        now = time.time()
+        last = sender_info.get("last_msg", 0)
+        if self.state.msg_rate_limit > 0 and (now - last) < self.state.msg_rate_limit:
+            wait = round(self.state.msg_rate_limit - (now - last), 1)
+            self._send(addr, f"[RATE_LIMITED]|{wait}")
+            return
+        sender_info["last_msg"] = now
         self.state.add_dm(sender, recipient, text)
         ts = int(time.time())
         payload = f"[DM]|{sender}|{ts}|{text}"

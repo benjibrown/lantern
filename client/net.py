@@ -354,6 +354,16 @@ class NetworkManager:
                         continue
 
                     # admin command feedback from the server 
+                    if msg.startswith("[RATE_LIMITED]|"):
+                        wait = msg.split("|", 1)[1] if "|" in msg else "?"
+                        notice = f"[system] slow down! try again in {wait}s"
+                        if self.state.current_view == "dm" and self.state.dm_target:
+                            self.state.append_dm(self.state.dm_target, notice, True)
+                        else:
+                            self.state.messages.append((notice, True))
+                            self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                        continue
+
                     if msg.startswith("[ADMIN_ERROR]|"):
                         reason = msg.split("|", 1)[1] if "|" in msg else "Admin error"
                         # route system message

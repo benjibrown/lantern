@@ -30,6 +30,7 @@ class ServerState:
 
         self.admins = self._load_admins()  # set of usernames
         self.fetch_cooldown = self._load_fetch_cooldown()
+        self.msg_rate_limit = self._load_msg_rate_limit()  # min seconds between messages per user
 
         self.fetch_last = {}
         self._save_lock = threading.Lock()
@@ -86,6 +87,16 @@ class ServerState:
             except Exception:
                 pass
         return 30 # default cooldown if fetch_cooldown missing
+
+    def _load_msg_rate_limit(self):
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r") as f:
+                    data = json.load(f)
+                    return float(data.get("msg_rate_limit", 1.0))
+            except Exception:
+                pass
+        return 1.0  # default: 1 message per second
 
     def save_admins(self):
         data = {"admins": sorted(self.admins)}

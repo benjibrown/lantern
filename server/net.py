@@ -256,6 +256,9 @@ class NetworkManager:
         other = parts[1].strip() if len(parts) > 1 else None
         if not other:
             return
+        if not self.state.user_exists(other):
+            self._send(addr, f"[DM_FAIL]|User '{other}' not found")
+            return
         history = self.state.get_dm_history(sender, other)
         self._send(addr, f"[DM_HISTORY]|{other}|{json.dumps(history)}")
 

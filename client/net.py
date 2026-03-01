@@ -310,6 +310,7 @@ class NetworkManager:
                     if msg.startswith("[DM_FAIL]|"):
                         reason = msg.split("|", 1)[1] if "|" in msg else "DM failed"
                         notice = f"[system] {reason}"
+                        self.state.pending_dm_history = None
                         if self.state.current_view == "dm" and self.state.dm_target:
                             self.state.append_dm(self.state.dm_target, notice, True)
                         else:
@@ -337,6 +338,10 @@ class NetworkManager:
                                         -self.config.MAX_MESSAGES :
                                     ]
                                 )
+                                # only open the DM view now that we know the user exists
+                                if self.state.pending_dm_history == other:
+                                    self.state.dm_target = other
+                                    self.state.current_view = "dm"
                                 self.state.pending_dm_history = None
                             except Exception:
                                 self.state.pending_dm_history = None

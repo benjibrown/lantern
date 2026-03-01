@@ -57,10 +57,6 @@ class CommandHandler:
                     else:
                         self.state.messages.append(("[system] cannot DM yourself", True))
                 return True
-            with self.state.lock:
-                self.state.dm_target = target
-                self.state.current_view = "dm"
-                self.state.ensure_dm_conversation(target)
             self.state.pending_dm_history = target
             self.network.request_dm_history(target)
             return True

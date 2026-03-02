@@ -55,7 +55,7 @@ class CommandHandler:
                     if self.state.current_view == "dm" and self.state.dm_target:
                         self.state.append_dm(self.state.dm_target, "[system] cannot DM yourself", True)
                     else:
-                        self.state.messages.append(("[system] cannot DM yourself", True))
+                        self.state.messages.append(("[system] cannot DM yourself", True, 0))
                 return True
             self.state.pending_dm_history = target
             self.network.request_dm_history(target)
@@ -72,7 +72,7 @@ class CommandHandler:
                 if self.state.current_view == "dm" and self.state.dm_target:
                     self.state.append_dm(self.state.dm_target, f"[system] Do not disturb {status}", True)
                 else:
-                    self.state.messages.append((f"[system] Do not disturb {status}", True))
+                    self.state.messages.append((f"[system] Do not disturb {status}", True, 0))
                     self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
             return True
         # fetch user stats for the given user - if none, fetch self.
@@ -88,7 +88,7 @@ class CommandHandler:
                 if self.state.current_view == "dm" and self.state.dm_target:
                     self.state.append_dm(self.state.dm_target, notice, True)
                 else:
-                    self.state.messages.append((notice, True))
+                    self.state.messages.append((notice, True, 0))
                     self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
             return True
 
@@ -101,7 +101,7 @@ class CommandHandler:
                         self.state.append_dm(self.state.dm_target, "[system] Usage: /mute <user>, /unmute <user>, /ban <user>, /unban <user>", True)
                     else:
                         self.state.messages.append(
-                        ("[system] Usage: /mute <user>, /unmute <user>, /ban <user>, /unban <user>", True)
+                        ("[system] Usage: /mute <user>, /unmute <user>, /ban <user>, /unban <user>", True, 0)
                     )
                         self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                 return True
@@ -126,7 +126,7 @@ class CommandHandler:
                         self.state.append_dm(self.state.dm_target, "[system] Usage: /changeusername <old_username> <new_username>", True)
                     else:
                         self.state.messages.append(
-                        ("[system] Usage: /changeusername <old_username> <new_username>", True)
+                        ("[system] Usage: /changeusername <old_username> <new_username>", True, 0)
                     )
                         self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                 return True

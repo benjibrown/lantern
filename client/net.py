@@ -86,7 +86,7 @@ class NetworkManager:
                     )
                 else:
                     self.state.messages.append(
-                    ("[system] Cannot run admin command: no session token from server", True)
+                    ("[system] Cannot run admin command: no session token from server", True, 0)
                 )
             return
         self._send(f"[ADMIN_CMD]|{command}|{self.config.USERNAME}|{self.state.session_token}|{payload}")
@@ -154,7 +154,8 @@ class NetworkManager:
                                     text = m.get("text", "")
                                     sender = m.get("sender", "")
                                     is_self = sender == self.config.USERNAME
-                                    self.state.messages.append((text, is_self))
+                                    ts = m.get("timestamp", 0)
+                                    self.state.messages.append((text, is_self, ts))
                                 self.state.messages[:] = self.state.messages[
                                     -self.config.MAX_MESSAGES :
                                 ]
@@ -225,7 +226,7 @@ class NetworkManager:
                                 self.state.append_dm(self.state.dm_target, line, True)
                         else:
                             for line in lines:
-                                self.state.messages.append((line, True))
+                                self.state.messages.append((line, True, 0))
                             self.state.messages[:] = self.state.messages[
                                 -self.config.MAX_MESSAGES :
                             ]
@@ -246,9 +247,9 @@ class NetworkManager:
                             for k, v in info.items():
                                 self.state.append_dm(self.state.dm_target, f"  {k}: {v}", True)
                         else:
-                            self.state.messages.append(("system", True))
+                            self.state.messages.append(("system", True, 0))
                             for k, v in info.items():
-                                self.state.messages.append((f"  {k}: {v}", True))
+                                self.state.messages.append((f"  {k}: {v}", True, 0))
                         if self.state.current_view == "dm" and self.state.dm_target:
                             self.send_dm(self.state.dm_target, "system")
                             for k, v in info.items():
@@ -265,7 +266,7 @@ class NetworkManager:
                         if self.state.current_view == "dm" and self.state.dm_target:
                             self.state.append_dm(self.state.dm_target, notice, True)
                         else:
-                            self.state.messages.append((notice, True))
+                            self.state.messages.append((notice, True, 0))
                         continue
 
                     if msg.startswith("[DM]|"):
@@ -281,7 +282,8 @@ class NetworkManager:
                             if is_self:
                                 continue
                             self.state.append_dm(
-                                from_user, f"[{from_user}]: {text}", False
+                                from_user, f"[{from_user}]: {text}", False,
+                                float(_ts) if _ts else time.time()
                             )
                             
                             if not self.state.dnd:
@@ -314,7 +316,7 @@ class NetworkManager:
                         if self.state.current_view == "dm" and self.state.dm_target:
                             self.state.append_dm(self.state.dm_target, notice, True)
                         else:
-                            self.state.messages.append((notice, True))
+                            self.state.messages.append((notice, True, 0))
                             self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                         continue
 
@@ -330,8 +332,9 @@ class NetworkManager:
                                     sender = m.get("sender", "")
                                     text = m.get("text", "")
                                     is_self = sender == self.config.USERNAME
+                                    ts = m.get("timestamp", 0)
                                     self.state.dm_conversations[other].append(
-                                        (f"[{sender}]: {text}", is_self)
+                                        (f"[{sender}]: {text}", is_self, ts)
                                     )
                                 self.state.dm_conversations[other][:] = (
                                     self.state.dm_conversations[other][
@@ -372,7 +375,7 @@ class NetworkManager:
                         if self.state.current_view == "dm" and self.state.dm_target:
                             self.state.append_dm(self.state.dm_target, notice, True)
                         else:
-                            self.state.messages.append((notice, True))
+                            self.state.messages.append((notice, True, 0))
                             self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                         continue
 
@@ -386,7 +389,7 @@ class NetworkManager:
                                 True,
                             )
                         else:
-                            self.state.messages.append((f"[system] {reason}", True))
+                            self.state.messages.append((f"[system] {reason}", True, 0))
                             self.state.messages[:] = self.state.messages[
                                 -self.config.MAX_MESSAGES :
                             ]
@@ -401,7 +404,7 @@ class NetworkManager:
                                 True,
                             )
                         else:
-                            self.state.messages.append((f"[system] {detail}", True))
+                            self.state.messages.append((f"[system] {detail}", True, 0))
                             self.state.messages[:] = self.state.messages[
                                 -self.config.MAX_MESSAGES :
                             ]
@@ -411,7 +414,7 @@ class NetworkManager:
                         f"[{self.config.USERNAME}]:"
                     ) or msg.startswith(f"[{self.config.USERNAME}] system")
                     self.state.messages.append(
-                        (msg[: self.config.MAX_MESSAGE_LEN], is_self)
+                        (msg[: self.config.MAX_MESSAGE_LEN], is_self, time.time())
                     )
                     self.state.messages[:] = self.state.messages[
                         -self.config.MAX_MESSAGES :

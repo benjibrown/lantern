@@ -566,7 +566,7 @@ class UI:
                 user_snapshot = sorted(self.state.users)
 
             lines = []
-            for text, is_self in chat_snapshot:
+            for text, is_self, ts in chat_snapshot:
                 display_text = text
                 is_system = text.startswith("[system]")
                 if (
@@ -582,8 +582,12 @@ class UI:
                 ):
                     display_text = text[len(f"[{self.config.USERNAME}] ") :]
                 prefix = "[you] " if is_self and not is_system else ""
-                for l in textwrap.wrap(prefix + display_text, chat_w) or [""]:
-                    lines.append((l, is_self, text, is_system))
+                ts_prefix = ""
+                if ts > 0 and not is_system and not text.endswith(" joined]") and not text.endswith(" left]"):
+                    ts_prefix = time.strftime("[%H:%M] ", time.localtime(ts))
+                for l in textwrap.wrap(ts_prefix + prefix + display_text, chat_w) or [""]:
+                    ts_len = len(ts_prefix) if l.startswith(ts_prefix) else 0
+                    lines.append((l, is_self, text, is_system, ts_len))
 
             total_lines = len(lines)
             scroll = (
@@ -602,13 +606,11 @@ class UI:
             end = total_lines - scroll
             visible_lines = lines[start:end]
 
-            for i, (line, is_self, original_text, is_system) in enumerate(
+            for i, (line, is_self, original_text, is_system, ts_len) in enumerate(
                 visible_lines
             ):
                 if is_system:
                     stdscr.addstr(i, 0, line, curses.color_pair(4))
-                elif is_self:
-                    stdscr.addstr(i, 0, line, curses.color_pair(1))
                 elif original_text.startswith("[") and original_text.endswith(
                     " joined]"
                 ):
@@ -616,7 +618,12 @@ class UI:
                 elif original_text.startswith("[") and original_text.endswith(" left]"):
                     stdscr.addstr(i, 0, line, curses.color_pair(3) | curses.A_DIM)
                 else:
-                    stdscr.addstr(i, 0, line)
+                    attr = curses.color_pair(1) if is_self else 0
+                    if ts_len > 0:
+                        stdscr.addstr(i, 0, line[:ts_len], curses.A_DIM)
+                        stdscr.addstr(i, ts_len, line[ts_len:], attr)
+                    else:
+                        stdscr.addstr(i, 0, line, attr)
 
             stdscr.vline(0, chat_w, "|", chat_h)
             for i, u in enumerate(user_snapshot[:chat_h]):
@@ -779,7 +786,7 @@ class UI:
                                     True,
                                 )
                             else:
-                                self.state.append_dm(dm_target, out, True)
+                                self.state.append_dm(dm_target, out, True, time.time())
                     else:
                         # need to add stuff here 
                         out = f"[{self.config.USERNAME}]: {msg}"
@@ -792,10 +799,10 @@ class UI:
                             if self.state.send_failed or no_response:
                                 self.state.send_failed = False
                                 self.state.messages.append(
-                                    ("[system] Failed to send (connection error)", True)
+                                    ("[system] Failed to send (connection error)", True, 0)
                                 )
                             else:
-                                self.state.messages.append((out, True))
+                                self.state.messages.append((out, True, time.time()))
                             self.state.messages[:] = self.state.messages[
                                 -self.config.MAX_MESSAGES :
                             ]

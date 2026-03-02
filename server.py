@@ -30,10 +30,16 @@ def main():
         action="store_true",
         help="Clear all stored messages and users, then start the server",
     )
+    parser.add_argument(
+            "--port",
+            "-p",
+            type=int,
+            default=6000,
+            help="Port to listen on (default: 6000)"
+            )
     args = parser.parse_args()
-    # TODO - add option to specify host and port. config file???? 
     HOST = "0.0.0.0"
-    PORT = 6000
+    PORT = args.port 
 
     if args.reset_db:
         clear_db()

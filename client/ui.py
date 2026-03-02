@@ -688,7 +688,7 @@ class UI:
                 # - ord('a') - caps lock fix
 
                 # help menu for ctrl + h - ensure fixed on widnows, doesnt trigger when pressing backspace lol
-                # REMOVED TEMP
+                # REMOVED for now
                 # ctrl + / for keybinds
                 if ch in (31, ord("_")):
                     self.show_keybinds(stdscr)

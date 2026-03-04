@@ -381,6 +381,8 @@ class NetworkManager:
                 self._send(addr, f"[FETCH_COOLDOWN]|{int(remaining)}")
                 return
             self.state.fetch_last[username] = now
+        # clear rate limit so the burst of fetch messages isn't blocked
+        client_info["last_msg"] = 0
         self._send(addr, "[FETCH_OK]")
 
     def _handle_client(self, conn: socket.socket, addr):

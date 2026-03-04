@@ -29,7 +29,7 @@ class ClientState:
         self.last_notification_time = 0
         self.send_failed = False
         self.last_received_from_server = 0.0
-        self.dnd = False
+        self.dnd = True # dnd on by default
         
         self.banned = False 
         self.ban_reason = ""

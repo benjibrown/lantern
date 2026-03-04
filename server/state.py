@@ -272,6 +272,21 @@ class ServerState:
             entry["muted"] = muted
         self.save_all()
 
+    def is_remote_opted_in(self, username: str) -> bool:
+        entry = self.users.get(username)
+        if isinstance(entry, dict):
+            return bool(entry.get("remote_opt_in", False))
+        return False
+
+    def set_remote_opt_in(self, username: str, enabled: bool):
+        if username not in self.users:
+            return
+        self._ensure_user_dict(username)
+        entry = self.users[username]
+        if isinstance(entry, dict):
+            entry["remote_opt_in"] = bool(enabled)
+        self.save_all()
+
     def rename_user(self, old_username: str, new_username: str) -> bool:
         # if a user is renamed in dms then you must reopen dms for msgs to send 
         old_username = (old_username or "").strip()
@@ -319,8 +334,8 @@ class ServerState:
                 "is_admin": self.is_admin(username),
                 "is_banned": self.is_banned(username),
                 "is_muted": self.is_muted(username),
+                "remote_opt_in": self.is_remote_opted_in(username),
                 "total_channel_messages": sum(1 for msg in self.channel_messages if msg["sender"] == username),
             }
         # if hasnt met any of these if statements then return None 
         return None 
-

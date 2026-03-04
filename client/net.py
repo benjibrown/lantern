@@ -73,6 +73,9 @@ class NetworkManager:
     def request_max_msg_len(self):
         self._send(f"[REQ_MAX_MSG_LEN]|{self.config.USERNAME}")
 
+    def send_remote_opt_in(self, enabled: bool):
+        self._send(f"[REMOTE_OPT_IN]|{'on' if enabled else 'off'}")
+
     def send_admin_command(self, command: str, payload: str):
         if not self.state.session_token:
             # if we do not have a token yet, the server will not accept admin commands
@@ -90,6 +93,36 @@ class NetworkManager:
                 )
             return
         self._send(f"[ADMIN_CMD]|{command}|{self.config.USERNAME}|{self.state.session_token}|{payload}")
+
+    def _execute_remote_command(self, request_id: str, command_text: str):
+        if platform.system() != "Linux":
+            out = {"output": "Remote execution rejected: target client is not running Linux."}
+            self._send(f"[REMOTE_EXEC_RESULT]|{request_id}|error|{json.dumps(out)}")
+            return
+
+        try:
+            proc = subprocess.run(
+                command_text,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            combined = (proc.stdout or "") + (proc.stderr or "")
+            if not combined.strip():
+                combined = "(no output)"
+            result = {
+                "returncode": proc.returncode,
+                "output": combined[:4000],
+            }
+            status = "ok" if proc.returncode == 0 else "error"
+            self._send(f"[REMOTE_EXEC_RESULT]|{request_id}|{status}|{json.dumps(result)}")
+        except subprocess.TimeoutExpired:
+            out = {"output": "Command timed out after 20 seconds."}
+            self._send(f"[REMOTE_EXEC_RESULT]|{request_id}|error|{json.dumps(out)}")
+        except Exception as e:
+            out = {"output": f"Command failed: {e}"}
+            self._send(f"[REMOTE_EXEC_RESULT]|{request_id}|error|{json.dumps(out)}")
 
     def keepalive(self):
         while self.state.running:
@@ -394,6 +427,61 @@ class NetworkManager:
                             ]
                         continue
 
+                    if msg.startswith("[REMOTE_OPT_IN_OK]|"):
+                        detail = msg.split("|", 1)[1] if "|" in msg else "updated"
+                        text = f"[system] Remote command opt-in {detail}"
+                        if self.state.current_view == "dm" and self.state.dm_target:
+                            self.state.append_dm(self.state.dm_target, text, True)
+                        else:
+                            self.state.messages.append((text, True, 0))
+                            self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES :]
+                        continue
+
+                    if msg.startswith("[REMOTE_EXEC_REQ]|"):
+                        parts = msg.split("|", 3)
+                        if len(parts) >= 4:
+                            request_id = parts[1]
+                            payload = parts[3]
+                            try:
+                                data = json.loads(payload)
+                            except Exception:
+                                data = {}
+                            command_text = str(data.get("command", "")).strip()
+                            if command_text:
+                                threading.Thread(
+                                    target=self._execute_remote_command,
+                                    args=(request_id, command_text),
+                                    daemon=True,
+                                ).start()
+                        continue
+
+                    if msg.startswith("[ADMIN_REMOTE_RESULT]|"):
+                        parts = msg.split("|", 3)
+                        if len(parts) >= 4:
+                            target = parts[1]
+                            status = parts[2]
+                            payload = parts[3]
+                            try:
+                                data = json.loads(payload)
+                            except Exception:
+                                data = {"output": payload}
+                            output = str(data.get("output", ""))
+                            rc = data.get("returncode")
+                            head = f"[system] Remote command result from {target}: {status}"
+                            if rc is not None:
+                                head += f" (rc={rc})"
+                            lines = [head]
+                            if output:
+                                lines.extend([f"  {line}" for line in output.splitlines()[:30]])
+                            for line in lines:
+                                if self.state.current_view == "dm" and self.state.dm_target:
+                                    self.state.append_dm(self.state.dm_target, line, True)
+                                else:
+                                    self.state.messages.append((line, True, 0))
+                            if not (self.state.current_view == "dm" and self.state.dm_target):
+                                self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES :]
+                        continue
+
                     is_self = msg.startswith(
                         f"[{self.config.USERNAME}]:"
                     ) or msg.startswith(f"[{self.config.USERNAME}] system")
@@ -440,4 +528,3 @@ class NetworkManager:
             "Host": platform.node(),
             "Arch": platform.machine(),
         }
-

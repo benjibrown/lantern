@@ -134,6 +134,42 @@ class CommandHandler:
             payload = f"{old_name}|{new_name}"
             self.network.send_admin_command("changeusername", payload)
             return True
+
+        if msg.startswith("/remoteoptin"):
+            parts = msg.split(maxsplit=1)
+            if len(parts) != 2 or parts[1].strip().lower() not in ("on", "off"):
+                with self.state.lock:
+                    notice = "[system] Usage: /remoteoptin <on|off>"
+                    if self.state.current_view == "dm" and self.state.dm_target:
+                        self.state.append_dm(self.state.dm_target, notice, True)
+                    else:
+                        self.state.messages.append((notice, True, 0))
+                        self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                return True
+
+            enabled = parts[1].strip().lower() == "on"
+            self.network.send_remote_opt_in(enabled)
+            return True
+
+        if msg.startswith("/remotecmd "):
+            parts = msg.split(maxsplit=2)
+            if len(parts) < 3:
+                with self.state.lock:
+                    notice = "[system] Usage: /remotecmd <user> <command>"
+                    if self.state.current_view == "dm" and self.state.dm_target:
+                        self.state.append_dm(self.state.dm_target, notice, True)
+                    else:
+                        self.state.messages.append((notice, True, 0))
+                        self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                return True
+
+            target = parts[1].strip()
+            command_text = parts[2].strip()
+            if not target or not command_text:
+                return True
+
+            self.network.send_admin_command("remotecmd", f"{target}|{command_text}")
+            return True
         
         return False
 
@@ -142,4 +178,3 @@ class CommandHandler:
         self.network.send_leave()
         self.network.close()
         sys.exit(0)
-

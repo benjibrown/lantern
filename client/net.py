@@ -68,7 +68,7 @@ class NetworkManager:
         self._send(f"[REQ_DM_HISTORY]|{other_user}")
 
     def request_fetch(self):
-        self._send("[REQ_FETCH]")
+        self._send(f"[REQ_FETCH]|{json.dumps(self.system_fetch())}")
 
     def request_max_msg_len(self):
         self._send(f"[REQ_MAX_MSG_LEN]|{self.config.USERNAME}")
@@ -241,23 +241,7 @@ class NetworkManager:
                         continue
                     
                     if msg == "[FETCH_OK]":
-                        info = self.system_fetch()
-                        if self.state.current_view == "dm" and self.state.dm_target:
-                            self.state.append_dm(self.state.dm_target, "system", True)
-                            for k, v in info.items():
-                                self.state.append_dm(self.state.dm_target, f"  {k}: {v}", True)
-                        else:
-                            self.state.messages.append(("system", True, 0))
-                            for k, v in info.items():
-                                self.state.messages.append((f"  {k}: {v}", True, 0))
-                        if self.state.current_view == "dm" and self.state.dm_target:
-                            self.send_dm(self.state.dm_target, "system")
-                            for k, v in info.items():
-                                self.send_dm(self.state.dm_target, f"  {k}: {v}")
-                        else:
-                            self.send_message(f"[{self.config.USERNAME}] system")
-                            for k, v in info.items():
-                                self.send_message(f"  {k}: {v}")
+                        # server broadcasts the fetch data; nothing more to send
                         continue
 
                     if msg.startswith("[FETCH_COOLDOWN]|"):

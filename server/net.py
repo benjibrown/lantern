@@ -365,7 +365,7 @@ class NetworkManager:
 
         self._send(addr, f"[ADMIN_ERROR]|Unknown admin command '{command}'")
 
-    def handle_req_fetch(self, addr):
+    def handle_req_fetch(self, msg, addr):
         client_info = self.state.clients.get(addr)
         if not client_info:
             return 
@@ -381,8 +381,18 @@ class NetworkManager:
                 self._send(addr, f"[FETCH_COOLDOWN]|{int(remaining)}")
                 return
             self.state.fetch_last[username] = now
-        # clear rate limit so the burst of fetch messages isn't blocked
-        client_info["last_msg"] = 0
+        # parse system info sent by client and broadcast it directly (bypasses rate limiting)
+        parts = msg.split("|", 1)
+        info = {}
+        if len(parts) > 1:
+            try:
+                info = json.loads(parts[1])
+            except Exception:
+                pass
+        lines = [f"[{username}] system"] + [f"  {k}: {v}" for k, v in info.items()]
+        for line in lines:
+            self.state.add_channel_message(username if line == lines[0] else "system", line)
+            self.broadcast(line)
         self._send(addr, "[FETCH_OK]")
 
     def _handle_client(self, conn: socket.socket, addr):
@@ -438,7 +448,7 @@ class NetworkManager:
                     self.handle_admin_cmd(msg, addr)
                     continue
                 if msg.startswith("[REQ_FETCH]"):
-                    self.handle_req_fetch(addr)
+                    self.handle_req_fetch(msg, addr)
                     continue
                 self.handle_message(msg, addr)
 

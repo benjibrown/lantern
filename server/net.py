@@ -2,6 +2,7 @@ import json
 import socket
 import time
 import threading
+import secrets
 from rich import print
 from frame import send_msg, recv_msg
 
@@ -22,6 +23,8 @@ class NetworkManager:
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((host, port))
         self.sock.listen(50)
+        self.remote_exec_requests = {}
+        self.remote_exec_lock = threading.Lock()
 
     def _send(self, addr, msg: str):
         # send to a specific connected client by addr key
@@ -363,7 +366,79 @@ class NetworkManager:
             self.send_user_list()
             return
 
+        if command == "remotecmd":
+            if "|" not in rest:
+                self._send(addr, "[ADMIN_ERROR]|Usage: /remotecmd <user> <command>")
+                return
+
+            target, command_text = [p.strip() for p in rest.split("|", 1)]
+            if not target or not command_text:
+                self._send(addr, "[ADMIN_ERROR]|Usage: /remotecmd <user> <command>")
+                return
+
+            if not self.state.user_exists(target):
+                self._send(addr, f"[ADMIN_ERROR]|User '{target}' not found")
+                return
+
+            if not self.state.is_remote_opted_in(target):
+                self._send(addr, f"[ADMIN_ERROR]|User '{target}' has not opted in to remote commands")
+                return
+
+            request_id = secrets.token_hex(8)
+            with self.remote_exec_lock:
+                self.remote_exec_requests[request_id] = {
+                    "admin": actor,
+                    "target": target,
+                    "created": time.time(),
+                }
+
+            payload = json.dumps({"command": command_text})
+            delivered = self.send_to_user(target, f"[REMOTE_EXEC_REQ]|{request_id}|{actor}|{payload}")
+            if not delivered:
+                with self.remote_exec_lock:
+                    self.remote_exec_requests.pop(request_id, None)
+                self._send(addr, f"[ADMIN_ERROR]|User '{target}' is not online")
+                return
+
+            self._send(addr, f"[ADMIN_OK]|Remote command sent to {target}")
+            return
+
         self._send(addr, f"[ADMIN_ERROR]|Unknown admin command '{command}'")
+
+    def handle_remote_opt_in(self, msg, addr):
+        sender = self.state.clients.get(addr, {}).get("username")
+        if not sender:
+            return
+
+        parts = msg.split("|", 1)
+        raw = parts[1].strip().lower() if len(parts) > 1 else ""
+        enabled = raw in ("1", "true", "on", "yes")
+        self.state.set_remote_opt_in(sender, enabled)
+        status = "enabled" if enabled else "disabled"
+        self._send(addr, f"[REMOTE_OPT_IN_OK]|{status}")
+
+    def handle_remote_exec_result(self, msg, addr):
+        sender = self.state.clients.get(addr, {}).get("username")
+        if not sender:
+            return
+
+        parts = msg.split("|", 3)
+        if len(parts) < 4:
+            return
+        _, request_id, status, payload = parts
+
+        with self.remote_exec_lock:
+            req = self.remote_exec_requests.pop(request_id, None)
+
+        if not req:
+            return
+
+        if req.get("target") != sender:
+            return
+
+        target = req.get("target")
+        admin = req.get("admin")
+        self.send_to_user(admin, f"[ADMIN_REMOTE_RESULT]|{target}|{status}|{payload}")
 
     def handle_req_fetch(self, msg, addr):
         client_info = self.state.clients.get(addr)
@@ -447,6 +522,12 @@ class NetworkManager:
                 if msg.startswith("[ADMIN_CMD]|"):
                     self.handle_admin_cmd(msg, addr)
                     continue
+                if msg.startswith("[REMOTE_OPT_IN]|"):
+                    self.handle_remote_opt_in(msg, addr)
+                    continue
+                if msg.startswith("[REMOTE_EXEC_RESULT]|"):
+                    self.handle_remote_exec_result(msg, addr)
+                    continue
                 if msg.startswith("[REQ_FETCH]"):
                     self.handle_req_fetch(msg, addr)
                     continue
@@ -482,4 +563,3 @@ class NetworkManager:
                 threading.Thread(target=self._handle_client, args=(conn, addr), daemon=True).start()
             except Exception as e:
                 print(f"[red][ERROR][/red] accept: {e}")
-

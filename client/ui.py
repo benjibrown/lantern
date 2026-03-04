@@ -79,6 +79,8 @@ class UI:
         ("/ban ", "Ban a user (admin)"),
         ("/unban ", "Unban a user (admin)"),
         ("/changeusername ", "Change username (admin)"),
+        ("/remoteoptin ", "Enable/disable opt-in for admin remote commands"),
+        ("/remotecmd ", "Run a command on an opted-in user (admin)"),
         ("/channel", "Switch to channel view"),
         ("/help", "Show help menu"),
     ]

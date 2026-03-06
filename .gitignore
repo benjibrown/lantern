@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 lantern_chat.egg-info/
 lantern_chat/__pycache__/
-
+dist/
 # C extensions
 *.so
 

@@ -2,6 +2,8 @@
 __pycache__/
 *.py[codz]
 *$py.class
+lantern_chat.egg-info/
+lantern_chat/__pycache__/
 
 # C extensions
 *.so
@@ -25,6 +27,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
 
 # PyInstaller
 #   Usually these files are written by a python script from a template

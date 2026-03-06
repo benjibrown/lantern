@@ -7,7 +7,7 @@ A curses based chat client and server.
 
 
 ### Screenshots
-<div align="center"> <a href=""><img src="https://github.com/benjibrown/nea/blob/main/screenshot_2026-03-06_20-16-49.png?raw=true" alt='image' width='800'/></a> </div>
+<div align="center"> <a href=""><img src="https://u.cubeupload.com/benjibrown/screenshot2026030620.png" alt='image' width='800'/></a> </div>
 
 
 

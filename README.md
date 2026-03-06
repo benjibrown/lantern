@@ -7,7 +7,7 @@ A curses based chat client and server.
 
 
 ### Screenshots
-<div align="center"> <a href=""><img src="https://camo.githubusercontent.com/c51d369415ae42031c2f34277ab926ffad30af988c34265f35980be2d17303d6/68747470733a2f2f69696c692e696f2f714a53675861612e706e67" alt='image' width='800'/></a> </div>
+<div align="center"> <a href=""><img src="https://iili.io/qxzsWJa.webp" alt='image' width='800'/></a> </div>
 
 
 
@@ -26,7 +26,7 @@ A curses based chat client and server.
 ```
 git clone https://github.com/benjibrown/lantern.git 
 cd lantern 
-pip install lantern-chat
+pip install .
 ```
 
 ### Usage

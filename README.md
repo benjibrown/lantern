@@ -7,7 +7,7 @@ A curses based chat client and server.
 
 
 ### Screenshots
-<div align="center"> <a href=""><img src="https://iili.io/qxzsWJa.webp" alt='image' width='800'/></a> </div>
+<div align="center"> <a href=""><img src="https://iili.io/qxITlhG.md.png" alt='image' width='800'/></a> </div>
 
 
 

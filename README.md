@@ -23,18 +23,35 @@ A curses based chat client and server.
 
 ### Installation
 
-Install dependencies
-```bash
-pip install -r requirements.txt
 ```
-Running a server
-```bash
-python server.py
+git clone https://github.com/benjibrown/lantern.git 
+cd lantern 
+pip install .
 ```
-Running the client
-```bash
-python client.py
+
+### Usage
+To start the server, run:
 ```
+lantern-server
+```
+You can specify a custom port with the `-p` flag, for example:
+```
+lantern-server -p 12345
+```
+To start the client, run:
+```
+lantern
+```
+You can specify the server host and port with the `-s` and `-p` flags, for example:
+```
+lantern -s 1.1.1.1 -p 12345
+```
+
+The default port is 6000 and default server host is localhost.
+
+All client and server config is saved to `~/.config/lantern/config.json` and `~/.config/lantern/server_config.json` respectively.
+In the server config, you can set the server admins, port, message and fetch cooldown.
+
 
 # Details
 

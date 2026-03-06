@@ -1,7 +1,0 @@
-{
-  "admins": [
-    "benji"
-  ],
-  "fetch_cooldown": 30,
-  "msg_rate_limit": 1.0
-}

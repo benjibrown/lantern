@@ -29,7 +29,7 @@ class Config:
 
         # first-run: no server configured anywhere — prompt and save
         if not server:
-            server = input("Enter server address [localhost]: ").strip() or "localhost"
+            server = input("Enter server address [leave blank for localhost]: ").strip() or "localhost"
             file_config["server"] = server
             file_config.setdefault("port", DEFAULT_PORT)
             self._save_config(file_config)

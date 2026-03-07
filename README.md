@@ -3,7 +3,9 @@
 # Lantern
 
 A curses based chat client and server.
-    ![PyPI - Downloads](https://img.shields.io/pypi/dw/lantern-chat)
+
+
+![PyPI - Downloads](https://img.shields.io/pypi/dw/lantern-chat)
 </div>
 
 

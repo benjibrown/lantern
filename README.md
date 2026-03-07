@@ -27,9 +27,7 @@ A curses based chat client and server.
 ### Installation
 
 ```
-git clone https://github.com/benjibrown/lantern.git 
-cd lantern 
-pip install .
+pip install lantern-chat
 ```
 
 ### Usage

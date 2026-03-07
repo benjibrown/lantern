@@ -29,19 +29,49 @@ class ClientState:
         self.last_notification_time = 0
         self.send_failed = False
         self.last_received_from_server = 0.0
-        self.dnd = True # dnd on by default
-        
+        self.dnd = True
+
         self.banned = False 
         self.ban_reason = ""
 
-    def ensure_dm_conversation(self, other_user: str):
+        # msg_id -> index in self.messages or (conv_key, index) for DMs
+        self.disp_index = {}
+
+    def ensure_dm_conversation(self, other_user):
         with self.lock:
             if other_user not in self.dm_conversations:
                 self.dm_conversations[other_user] = []
             return self.dm_conversations[other_user]
 
-    def append_dm(self, other_user: str, text: str, is_self: bool, ts: float = 0):
+    def append_dm(self, other_user, text, is_self, ts=0, msg_id=None):
         with self.lock:
             self.ensure_dm_conversation(other_user)
-            self.dm_conversations[other_user].append((text, is_self, ts))
+            self.dm_conversations[other_user].append((text, is_self, ts, msg_id))
             self.dm_conversations[other_user][:] = self.dm_conversations[other_user][-self.max_messages:]
+            if msg_id:
+                idx = len(self.dm_conversations[other_user]) - 1
+                self.disp_index[msg_id] = ("dm", other_user, idx)
+
+    def _redact_text(self, existing, redacted):
+        # preserve "[sender]: " prefix so the author is still visible after hiding
+        if "]: " in existing:
+            prefix = existing[: existing.index("]: ") + 3]
+            return prefix + redacted
+        return redacted
+
+    def expire_disp(self, msg_id, redacted):
+        with self.lock:
+            loc = self.disp_index.pop(msg_id, None)
+            if loc is None:
+                return
+            if loc[0] == "channel":
+                idx = loc[1]
+                if idx < len(self.messages):
+                    t, is_self, ts, _ = self.messages[idx]
+                    self.messages[idx] = (self._redact_text(t, redacted), is_self, ts, None)
+            elif loc[0] == "dm":
+                conv_key, idx = loc[1], loc[2]
+                conv = self.dm_conversations.get(conv_key, [])
+                if idx < len(conv):
+                    t, is_self, ts, _ = conv[idx]
+                    conv[idx] = (self._redact_text(t, redacted), is_self, ts, None)

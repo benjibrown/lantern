@@ -72,7 +72,7 @@ class UI:
         ("/fetch", "Send system info (30s cooldown)"),
         ("/dnd", "Toggle do not disturb"),
         ("/stats", "Show user statistics"),
-        ("/stats <user>", "Show stats for specific user"),
+        ("/disp <secs> <msg>", "Send a disappearing message"),
         ("/clear ", "Clear messages from main chat for session"),
         ("/mute ", "Mute a user (admin)"),
         ("/unmute ", "Unmute a user (admin)"),
@@ -238,10 +238,11 @@ class UI:
                 "  /fetch     Send system info (30s cooldown)",
                 "  /dnd       Do not disturb (toggle notifications)",
                 "  /clear     Clear messages from main chat for session",
+                "  /disp <s> <msg>  Send a disappearing message",
                 "",
                 "Keybinds:",
                 "  Ctrl+H     Help menu",
-                "  Ctrl+/     Show keybinds",
+                "  Ctrl+K     Show keybinds",
                 "  Ctrl+F     Fetch system info",
                 "  Ctrl+B     Switch to channel view",
                 "  Ctrl+P     Open user panel",
@@ -266,6 +267,7 @@ class UI:
                 "/panel   List users, pick one to DM",
                 "/fetch   Send system info (30s cooldown)",
                 "/dnd     Do not disturb (toggle notifications)",
+                "/disp <s> <msg>  Send a disappearing message",
                 "",
                 "Press any key to close",
             ]
@@ -324,7 +326,7 @@ class UI:
         lines = [
             "Keybinds",
             "ctrl+h   Help menu",
-            "ctrl+/   Show keybinds",
+            "ctrl+k   Show keybinds",
             "ctrl+f   Fetch system info",
             "ctrl+p   Open user panel (DM picker)",
             "ctrl+d   Toggle Do Not Disturb",
@@ -566,7 +568,8 @@ class UI:
                 user_snapshot = sorted(self.state.users)
 
             lines = []
-            for text, is_self, ts in chat_snapshot:
+            for entry in chat_snapshot:
+                text, is_self, ts = entry[0], entry[1], entry[2]
                 display_text = text
                 is_system = text.startswith("[system]")
                 if (
@@ -697,7 +700,7 @@ class UI:
                 # help menu for ctrl + h - ensure fixed on widnows, doesnt trigger when pressing backspace lol
                 # REMOVED for now
                 # ctrl + / for keybinds
-                if ch in (31, ord("_")):
+                if ch == 11:  # ctrl+k
                     self.show_keybinds(stdscr)
                     continue
                 # ctrl + w for exit with confirm

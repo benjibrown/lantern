@@ -75,7 +75,6 @@ class CommandHandler:
                     self.state.messages.append((f"[system] Do not disturb {status}", True, 0))
                     self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
             return True
-        # fetch user stats for the given user - if none, fetch self.
         if msg.startswith("/stats"):
             parts = msg.split(maxsplit=1)
             target = parts[1].strip() if len(parts) > 1 else self.config.USERNAME
@@ -135,6 +134,21 @@ class CommandHandler:
             self.network.send_admin_command("changeusername", payload)
             return True
         
+        if msg.startswith("/disp "):
+            parts = msg.split(None, 2)
+            if len(parts) < 3 or not parts[1].isdigit():
+                notice = "[system] Usage: /disp <seconds> <message>"
+                with self.state.lock:
+                    if self.state.current_view == "dm" and self.state.dm_target:
+                        self.state.append_dm(self.state.dm_target, notice, True)
+                    else:
+                        self.state.messages.append((notice, True, 0))
+                        self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                return True
+            seconds, text = int(parts[1]), parts[2]
+            self.network.send_disp(seconds, text)
+            return True
+
         return False
 
     def shutdown(self):

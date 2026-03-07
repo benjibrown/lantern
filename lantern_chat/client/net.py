@@ -64,6 +64,13 @@ class NetworkManager:
             with self.state.lock:
                 self.state.send_failed = True
 
+    def send_disp(self, seconds: int, text: str):
+        try:
+            self._send(f"[DISP]|{seconds}|{text}")
+        except OSError:
+            with self.state.lock:
+                self.state.send_failed = True
+
     def request_dm_history(self, other_user: str):
         self._send(f"[REQ_DM_HISTORY]|{other_user}")
 
@@ -392,6 +399,31 @@ class NetworkManager:
                             self.state.messages[:] = self.state.messages[
                                 -self.config.MAX_MESSAGES :
                             ]
+                        continue
+
+                    if msg.startswith("[DISP]|"):
+                        # [DISP]|<msg_id>|<sender>|<expires_at>|<text>
+                        parts = msg.split("|", 4)
+                        if len(parts) == 5:
+                            msg_id, sender, expires_at, text = parts[1], parts[2], float(parts[3]), parts[4]
+                            is_self = sender == self.config.USERNAME
+                            display = f"[{sender}]: {text}"
+                            with self.state.lock:
+                                if self.state.current_view == "dm" and self.state.dm_target:
+                                    self.state.append_dm(self.state.dm_target, display, is_self, time.time(), msg_id)
+                                else:
+                                    idx = len(self.state.messages)
+                                    self.state.messages.append((display, is_self, time.time(), msg_id))
+                                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                                    self.state.disp_index[msg_id] = ("channel", idx)
+                        continue
+
+                    if msg.startswith("[DISP_EXPIRE]|"):
+                        # [DISP_EXPIRE]|<msg_id>|<redacted>
+                        parts = msg.split("|", 2)
+                        if len(parts) == 3:
+                            msg_id, redacted = parts[1], parts[2]
+                            self.state.expire_disp(msg_id, redacted)
                         continue
 
                     is_self = msg.startswith(

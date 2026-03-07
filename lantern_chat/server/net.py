@@ -2,6 +2,7 @@ import json
 import socket
 import time
 import threading
+import uuid
 from rich import print
 from lantern_chat.frame import send_msg, recv_msg
 
@@ -395,6 +396,56 @@ class NetworkManager:
             self.broadcast(line)
         self._send(addr, "[FETCH_OK]")
 
+    def _redact(self, text):
+        return " ".join("*" * len(w) for w in text.split(" "))
+
+    def handle_disp(self, msg, addr):
+        client_info = self.state.clients.get(addr)
+        if not client_info:
+            return
+        sender = client_info.get("username")
+        if not sender:
+            return
+        if self.state.is_muted(sender):
+            self._send(addr, "[ADMIN_ERROR]|You are muted and cannot send messages")
+            return
+
+        # rate limit
+        now = time.time()
+        last = client_info.get("last_msg", 0)
+        if self.state.msg_rate_limit > 0 and (now - last) < self.state.msg_rate_limit:
+            wait = round(self.state.msg_rate_limit - (now - last), 1)
+            self._send(addr, f"[RATE_LIMITED]|{wait}")
+            return
+        client_info["last_msg"] = now
+
+        # [DISP]|<seconds>|<text>
+        parts = msg.split("|", 2)
+        if len(parts) < 3:
+            self._send(addr, "[ADMIN_ERROR]|Usage: /disp <seconds> <message>")
+            return
+        try:
+            seconds = max(1, min(int(parts[1]), 3600))
+        except ValueError:
+            self._send(addr, "[ADMIN_ERROR]|/disp requires a number of seconds")
+            return
+        text = parts[2].strip()
+        if not text:
+            return
+
+        msg_id = str(uuid.uuid4())
+        expires_at = now + seconds
+        payload = f"[DISP]|{msg_id}|{sender}|{expires_at}|{text}"
+        self.broadcast(payload)
+
+        # schedule server-side expiry
+        def _expire():
+            time.sleep(seconds)
+            redacted = self._redact(text)
+            self.broadcast(f"[DISP_EXPIRE]|{msg_id}|{redacted}")
+
+        threading.Thread(target=_expire, daemon=True).start()
+
     def _handle_client(self, conn: socket.socket, addr):
         # per-client receive loop - each connection runs in its own thread
         try:
@@ -449,6 +500,9 @@ class NetworkManager:
                     continue
                 if msg.startswith("[REQ_FETCH]"):
                     self.handle_req_fetch(msg, addr)
+                    continue
+                if msg.startswith("[DISP]|"):
+                    self.handle_disp(msg, addr)
                     continue
                 self.handle_message(msg, addr)
 

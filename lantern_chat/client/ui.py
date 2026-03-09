@@ -682,6 +682,7 @@ class UI:
 
         stdscr.nodelay(True)
         stdscr.keypad(True)
+        curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
         self.input_buf = ""
         self.network.request_user_list()
         self.input_cursor = 0
@@ -908,6 +909,23 @@ class UI:
                     if (view == "dm" and dm_target)
                     else self.scroll_offset
                 )
+                if ch == curses.KEY_MOUSE:
+                    try:
+                        _, _, _, _, bstate = curses.getmouse()
+                        if bstate & curses.BUTTON4_PRESSED:  # scroll up
+                            if view == "dm" and dm_target:
+                                self.dm_scroll_offset += 3
+                            else:
+                                self.scroll_offset += 3
+                        elif bstate & curses.BUTTON5_PRESSED:  # scroll down
+                            if view == "dm" and dm_target:
+                                self.dm_scroll_offset = max(0, self.dm_scroll_offset - 3)
+                            else:
+                                self.scroll_offset = max(0, self.scroll_offset - 3)
+                    except curses.error:
+                        pass
+                    continue
+
                 if ch == curses.KEY_UP:
                     # nav autocomplete if active 
                     if self.autocomplete_active and self.autocomplete_matches:

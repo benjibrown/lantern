@@ -10,6 +10,8 @@ import os
 
 from lantern_chat.frame import send_msg, recv_msg
 
+# TODO - split img logic into a seperate file cos maintaining it here is a bit of a pain, also would be nice to have some shared utils for encoding/decoding images between client and server in one place instead of duplicating code in both places since the server and client code are installed with the same pip package 
+
 try:
     from PIL import Image
     _PIL_AVAILABLE = True
@@ -38,6 +40,40 @@ def _img_to_rows(data: bytes):
             row.append(("█", r, g, b))
         rows.append(row)
     return rows
+
+
+def get_clipboard_image():
+    # an attempt to get imgs from cliboard - this is so cancer 
+    # only tested on linux so if u have a mac please lmk.
+    # if doesnt work, then no big deal as you can still send with /img 
+    # returns (bytes, filename) or (None, None) if no image found or on error 
+
+    system = platform.system()
+    try:
+        if system == "Darwin":
+            # osascript can read PNG data from the macOS clipboard
+            script = (
+                'set img to (get the clipboard as «class PNGf»)\n'
+                'return img as string'
+            )
+            result = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True,
+            )
+            if result.returncode == 0 and result.stdout:
+                return result.stdout, "clipboard.png"
+        else:
+            # Try Wayland first, then X11 - wayland is so much better frfr but understand not everyone uses it yet
+            for cmd in (
+                ["wl-paste", "--type", "image/png", "--no-newline"],
+                ["xclip", "-selection", "clipboard", "-t", "image/png", "-o"],
+            ):
+                result = subprocess.run(cmd, capture_output=True)
+                if result.returncode == 0 and result.stdout:
+                    return result.stdout, "clipboard.png"
+    except Exception:
+        pass
+    return None, None
 
 
 class NetworkManager:
@@ -115,6 +151,35 @@ class NetworkManager:
                 buf = io.BytesIO()
                 img.convert("RGB").save(buf, format="PNG")
                 b64 = base64.b64encode(buf.getvalue()).decode()
+
+            # large image fix - shouldnt kill client now
+            if len(b64) > 8 * 1024 * 1024:
+                with self.state.lock:
+                    self.state.messages.append(("[system] Image too large to send (max ~8MB)", True, 0))
+                return
+            if dm_recipient:
+                self._send(f"[DM_IMG]|{dm_recipient}|{filename}|{b64}")
+            else:
+                self._send(f"[IMG]|{filename}|{b64}")
+        except Exception as e:
+            with self.state.lock:
+                self.state.messages.append((f"[system] Failed to send image: {e}", True, 0))
+    
+    # this code is getting very long icl
+    def send_img_bytes(self, data: bytes, filename: str, dm_recipient: str = None):
+        if not _PIL_AVAILABLE:
+            with self.state.lock:
+                self.state.messages.append(("[system] Pillow not installed — cannot send images", True, 0))
+            return
+        try:
+            with Image.open(io.BytesIO(data)) as img:
+                buf = io.BytesIO()
+                img.convert("RGB").save(buf, format="PNG")
+                b64 = base64.b64encode(buf.getvalue()).decode()
+            if len(b64) > 8 * 1024 * 1024:
+                with self.state.lock:
+                    self.state.messages.append(("[system] Image too large to send (max ~8MB)", True, 0))
+                return
             if dm_recipient:
                 self._send(f"[DM_IMG]|{dm_recipient}|{filename}|{b64}")
             else:

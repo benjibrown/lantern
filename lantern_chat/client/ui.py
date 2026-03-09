@@ -5,6 +5,7 @@ import subprocess
 import random
 import sys
 import os
+import threading
 
 # ------ UI class ------
 # next time im not using curses lmao - textual??? it seems better but idk 
@@ -355,6 +356,7 @@ class UI:
             "ctrl+f   Fetch system info",
             "ctrl+p   Open user panel (DM picker)",
             "ctrl+d   Toggle Do Not Disturb",
+            "ctrl+v   Paste image from clipboard",
             "ctrl+l   Logout",
             "ctrl+w   Exit (with confirm)",
             "Esc x2   Exit (immediate)",
@@ -881,6 +883,20 @@ class UI:
                 if ch == (ord("b") - ord("a") + 1):
                     if self.command_handler.handle_command("/back", stdscr):
                         continue
+                # ctrl + v to paste image from clipboard
+                if ch == 22:
+                    from lantern_chat.client.net import get_clipboard_image
+                    img_data, img_name = get_clipboard_image()
+                    if img_data:
+                        with self.state.lock:
+                            dm_target_now = self.state.dm_target if self.state.current_view == "dm" else None
+                        threading.Thread(
+                            target=self.network.send_img_bytes,
+                            args=(img_data, img_name, dm_target_now),
+                            daemon=True,
+                        ).start()
+                        continue
+                    # no image in clipboard — fall through to normal char handling
 
                 scroll_off = (
                     self.dm_scroll_offset

@@ -417,20 +417,19 @@ class NetworkManager:
             return
         client_info["last_msg"] = now
 
-        # [IMG]|<base64_data>
-        parts = msg.split("|", 1)
-        if len(parts) < 2:
+        # [IMG]|<filename>|<base64_data>
+        parts = msg.split("|", 2)
+        if len(parts) < 3:
             return
-        b64 = parts[1]
-        # validate it's actually base64 before broadcasting
+        filename, b64 = parts[1], parts[2]
         try:
             base64.b64decode(b64, validate=True)
         except Exception:
             self._send(addr, "[ADMIN_ERROR]|Invalid image data")
             return
 
-        self.broadcast(f"[IMG]|{sender}|{b64}")
-        self.state.add_channel_message(sender, f"__IMG__{b64}")
+        self.broadcast(f"[IMG]|{sender}|{filename}|{b64}")
+        self.state.add_channel_message(sender, f"[image: {filename}]")
     # ik this is basically the same as handle_img but i couldnt get it to work any other way - trying to do it in with same method made all dm images show up in the main channel for recipients which was v bad.   
     def handle_dm_img(self, msg, addr):
         client_info = self.state.clients.get(addr)
@@ -452,10 +451,10 @@ class NetworkManager:
         client_info["last_msg"] = now
 
         # [DM_IMG]|<recipient>|<base64>
-        parts = msg.split("|", 2)
-        if len(parts) < 3:
+        parts = msg.split("|", 3)
+        if len(parts) < 4:
             return
-        recipient, b64 = parts[1], parts[2]
+        recipient, filename, b64 = parts[1], parts[2], parts[3]
 
         if not self.state.user_exists(recipient):
             self._send(addr, "[DM_FAIL]|User not found")
@@ -467,10 +466,10 @@ class NetworkManager:
             return
 
         # send to recipient (if online) and echo back to sender
-        wire = f"[DM_IMG]|{sender}|{recipient}|{b64}"
+        wire = f"[DM_IMG]|{sender}|{recipient}|{filename}|{b64}"
         self.send_to_user(recipient, wire)
         self._send(addr, wire)
-        self.state.add_dm(sender, recipient, f"__IMG__{b64}")
+        self.state.add_dm(sender, recipient, f"[image: {filename}]")
 
     def _redact(self, text):
         return " ".join("*" * len(w) for w in text.split(" "))

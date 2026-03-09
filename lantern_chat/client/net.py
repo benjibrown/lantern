@@ -6,6 +6,7 @@ import subprocess
 import json
 import base64
 import io
+import os
 
 from lantern_chat.frame import send_msg, recv_msg
 
@@ -108,15 +109,16 @@ class NetworkManager:
                 self.state.messages.append(("[system] Pillow not installed — cannot send images", True, 0))
             return
         try:
+            filename = os.path.basename(path)
             with Image.open(path) as img:
                 img.load()  # force first frame for GIFs
                 buf = io.BytesIO()
                 img.convert("RGB").save(buf, format="PNG")
                 b64 = base64.b64encode(buf.getvalue()).decode()
             if dm_recipient:
-                self._send(f"[DM_IMG]|{dm_recipient}|{b64}")
+                self._send(f"[DM_IMG]|{dm_recipient}|{filename}|{b64}")
             else:
-                self._send(f"[IMG]|{b64}")
+                self._send(f"[IMG]|{filename}|{b64}")
         except Exception as e:
             with self.state.lock:
                 self.state.messages.append((f"[system] Failed to send image: {e}", True, 0))
@@ -212,16 +214,7 @@ class NetworkManager:
                                     sender = m.get("sender", "")
                                     is_self = sender == self.config.USERNAME
                                     ts = m.get("timestamp", 0)
-                                    if text.startswith("__IMG__"):
-                                        b64 = text[7:]
-                                        label = f"[{sender}]: [image]"
-                                        try:
-                                            img_rows = _img_to_rows(base64.b64decode(b64))
-                                        except Exception:
-                                            img_rows = None
-                                        self.state.messages.append((label, is_self, ts, None, img_rows))
-                                    else:
-                                        self.state.messages.append((text, is_self, ts))
+                                    self.state.messages.append((text, is_self, ts))
                                 self.state.messages[:] = self.state.messages[
                                     -self.config.MAX_MESSAGES :
                                 ]
@@ -383,20 +376,9 @@ class NetworkManager:
                                     text = m.get("text", "")
                                     is_self = sender == self.config.USERNAME
                                     ts = m.get("timestamp", 0)
-                                    if text.startswith("__IMG__"):
-                                        b64 = text[7:]
-                                        label = f"[{sender}]: [image]"
-                                        try:
-                                            img_rows = _img_to_rows(base64.b64decode(b64))
-                                        except Exception:
-                                            img_rows = None
-                                        self.state.dm_conversations[other].append(
-                                            (label, is_self, ts, None, img_rows)
-                                        )
-                                    else:
-                                        self.state.dm_conversations[other].append(
-                                            (f"[{sender}]: {text}", is_self, ts)
-                                        )
+                                    self.state.dm_conversations[other].append(
+                                        (f"[{sender}]: {text}", is_self, ts)
+                                    )
                                 self.state.dm_conversations[other][:] = (
                                     self.state.dm_conversations[other][
                                         -self.config.MAX_MESSAGES :
@@ -472,13 +454,13 @@ class NetworkManager:
                         continue
 
                     if msg.startswith("[DM_IMG]|"):
-                        # [DM_IMG]|<sender>|<other_user>|<base64_data>
-                        parts = msg.split("|", 3)
-                        if len(parts) == 4:
-                            sender, other_user, b64 = parts[1], parts[2], parts[3]
+                        # [DM_IMG]|<sender>|<other_user>|<filename>|<base64_data>
+                        parts = msg.split("|", 4)
+                        if len(parts) == 5:
+                            sender, other_user, filename, b64 = parts[1], parts[2], parts[3], parts[4]
                             is_self = sender == self.config.USERNAME
                             conv_key = other_user if is_self else sender
-                            label = f"[{sender}]: [image]"
+                            label = f"[{sender}]: [image: {filename}]"
                             try:
                                 img_rows = _img_to_rows(base64.b64decode(b64))
                             except Exception:
@@ -487,12 +469,12 @@ class NetworkManager:
                         continue
 
                     if msg.startswith("[IMG]|"):
-                        # [IMG]|<sender>|<base64_data>
-                        parts = msg.split("|", 2)
-                        if len(parts) == 3:
-                            sender, b64 = parts[1], parts[2]
+                        # [IMG]|<sender>|<filename>|<base64_data>
+                        parts = msg.split("|", 3)
+                        if len(parts) == 4:
+                            sender, filename, b64 = parts[1], parts[2], parts[3]
                             is_self = sender == self.config.USERNAME
-                            label = f"[{sender}]: [image]"
+                            label = f"[{sender}]: [image: {filename}]"
                             try:
                                 raw = base64.b64decode(b64)
                                 img_rows = _img_to_rows(raw)

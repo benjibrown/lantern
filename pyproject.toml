@@ -12,7 +12,7 @@ authors = [
     { name = "Benji Brown", email = "benjnib09@gmail.com"}
 ]
 requires-python = ">=3.8"
-dependencies = ["rich"]
+dependencies = ["rich", "Pillow"]
 
 [project.urls]
 Homepage = "https://github.com/benjibrown/lantern"

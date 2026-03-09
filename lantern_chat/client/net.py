@@ -4,8 +4,39 @@ import time
 import platform
 import subprocess
 import json
+import base64
+import io
 
 from lantern_chat.frame import send_msg, recv_msg
+
+try:
+    from PIL import Image
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PIL_AVAILABLE = False
+
+IMG_MAX_WIDTH = 80
+IMG_MAX_HEIGHT = 40
+
+
+def _img_to_rows(data: bytes):
+    # converts each img row into bytes :)
+    # also works for gifs but will only take the first frame, which is probably fine for now lol
+    if not _PIL_AVAILABLE:
+        return None
+    img = Image.open(io.BytesIO(data)).convert("RGB")
+    # terminal chars are ~2x taller than wide so halve the height
+    w = min(img.width, IMG_MAX_WIDTH)
+    h = max(1, min(int(img.height * (w / img.width) * 0.45), IMG_MAX_HEIGHT))
+    img = img.resize((w, h), Image.LANCZOS)
+    rows = []
+    for y in range(h):
+        row = []
+        for x in range(w):
+            r, g, b = img.getpixel((x, y))
+            row.append(("█", r, g, b))
+        rows.append(row)
+    return rows
 
 
 class NetworkManager:
@@ -70,6 +101,25 @@ class NetworkManager:
         except OSError:
             with self.state.lock:
                 self.state.send_failed = True
+
+    def send_img(self, path: str, dm_recipient: str = None):
+        if not _PIL_AVAILABLE:
+            with self.state.lock:
+                self.state.messages.append(("[system] Pillow not installed — cannot send images", True, 0))
+            return
+        try:
+            with Image.open(path) as img:
+                img.load()  # force first frame for GIFs
+                buf = io.BytesIO()
+                img.convert("RGB").save(buf, format="PNG")
+                b64 = base64.b64encode(buf.getvalue()).decode()
+            if dm_recipient:
+                self._send(f"[DM_IMG]|{dm_recipient}|{b64}")
+            else:
+                self._send(f"[IMG]|{b64}")
+        except Exception as e:
+            with self.state.lock:
+                self.state.messages.append((f"[system] Failed to send image: {e}", True, 0))
 
     def request_dm_history(self, other_user: str):
         self._send(f"[REQ_DM_HISTORY]|{other_user}")
@@ -162,7 +212,16 @@ class NetworkManager:
                                     sender = m.get("sender", "")
                                     is_self = sender == self.config.USERNAME
                                     ts = m.get("timestamp", 0)
-                                    self.state.messages.append((text, is_self, ts))
+                                    if text.startswith("__IMG__"):
+                                        b64 = text[7:]
+                                        label = f"[{sender}]: [image]"
+                                        try:
+                                            img_rows = _img_to_rows(base64.b64decode(b64))
+                                        except Exception:
+                                            img_rows = None
+                                        self.state.messages.append((label, is_self, ts, None, img_rows))
+                                    else:
+                                        self.state.messages.append((text, is_self, ts))
                                 self.state.messages[:] = self.state.messages[
                                     -self.config.MAX_MESSAGES :
                                 ]
@@ -324,9 +383,20 @@ class NetworkManager:
                                     text = m.get("text", "")
                                     is_self = sender == self.config.USERNAME
                                     ts = m.get("timestamp", 0)
-                                    self.state.dm_conversations[other].append(
-                                        (f"[{sender}]: {text}", is_self, ts)
-                                    )
+                                    if text.startswith("__IMG__"):
+                                        b64 = text[7:]
+                                        label = f"[{sender}]: [image]"
+                                        try:
+                                            img_rows = _img_to_rows(base64.b64decode(b64))
+                                        except Exception:
+                                            img_rows = None
+                                        self.state.dm_conversations[other].append(
+                                            (label, is_self, ts, None, img_rows)
+                                        )
+                                    else:
+                                        self.state.dm_conversations[other].append(
+                                            (f"[{sender}]: {text}", is_self, ts)
+                                        )
                                 self.state.dm_conversations[other][:] = (
                                     self.state.dm_conversations[other][
                                         -self.config.MAX_MESSAGES :
@@ -399,6 +469,42 @@ class NetworkManager:
                             self.state.messages[:] = self.state.messages[
                                 -self.config.MAX_MESSAGES :
                             ]
+                        continue
+
+                    if msg.startswith("[DM_IMG]|"):
+                        # [DM_IMG]|<sender>|<other_user>|<base64_data>
+                        parts = msg.split("|", 3)
+                        if len(parts) == 4:
+                            sender, other_user, b64 = parts[1], parts[2], parts[3]
+                            is_self = sender == self.config.USERNAME
+                            conv_key = other_user if is_self else sender
+                            label = f"[{sender}]: [image]"
+                            try:
+                                img_rows = _img_to_rows(base64.b64decode(b64))
+                            except Exception:
+                                img_rows = None
+                            self.state.append_dm(conv_key, label, is_self, time.time(), img_data=img_rows)
+                        continue
+
+                    if msg.startswith("[IMG]|"):
+                        # [IMG]|<sender>|<base64_data>
+                        parts = msg.split("|", 2)
+                        if len(parts) == 3:
+                            sender, b64 = parts[1], parts[2]
+                            is_self = sender == self.config.USERNAME
+                            label = f"[{sender}]: [image]"
+                            try:
+                                raw = base64.b64decode(b64)
+                                img_rows = _img_to_rows(raw)
+                            except Exception:
+                                img_rows = None
+                            with self.state.lock:
+                                entry = (label, is_self, time.time(), None, img_rows)
+                                if self.state.current_view == "dm" and self.state.dm_target:
+                                    self.state.append_dm(self.state.dm_target, label, is_self, time.time(), img_data=img_rows)
+                                else:
+                                    self.state.messages.append(entry)
+                                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                         continue
 
                     if msg.startswith("[DISP]|"):

@@ -1,4 +1,5 @@
 import sys
+import threading
 
 
 class CommandHandler:
@@ -31,7 +32,7 @@ class CommandHandler:
         if msg == "/help":
             self.ui.show_help(stdscr)
             return True
-        # TODO - server side cooldown control
+
         if msg == "/fetch":
             self.network.request_fetch()
             return True
@@ -41,11 +42,8 @@ class CommandHandler:
                 self.state.current_view = "channel"
                 self.state.dm_target = None
             return True
-        # TODO - /dm "user" - check if user exists and isnt just themselves. 
-        # TODO - popup window when typing /.. to show available commands. autocompletion????? idk if this is possible in curses 
         if msg.startswith("/dm "):
             target = msg[4:].strip()
-            # TODO - validate target username (exists, not self), also dm cmd doesnt work in the dm view - idk why
             
             if not target:
                 return True
@@ -133,7 +131,15 @@ class CommandHandler:
             payload = f"{old_name}|{new_name}"
             self.network.send_admin_command("changeusername", payload)
             return True
-        
+        # img cmd handling - might make keybind
+        if msg == "/img":
+            path = self.ui.show_file_picker(stdscr)
+            if path:
+                with self.state.lock:
+                    dm_target = self.state.dm_target if self.state.current_view == "dm" else None
+                threading.Thread(target=self.network.send_img, args=(path, dm_target), daemon=True).start()
+            return True
+
         if msg.startswith("/disp "):
             parts = msg.split(None, 2)
             if len(parts) < 3 or not parts[1].isdigit():

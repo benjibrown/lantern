@@ -3,6 +3,7 @@ import socket
 import time
 import threading
 import uuid
+import base64
 from rich import print
 from lantern_chat.frame import send_msg, recv_msg
 
@@ -396,6 +397,81 @@ class NetworkManager:
             self.broadcast(line)
         self._send(addr, "[FETCH_OK]")
 
+    # all the handling img methods below, 
+    def handle_img(self, msg, addr):
+        client_info = self.state.clients.get(addr)
+        if not client_info:
+            return
+        sender = client_info.get("username")
+        if not sender:
+            return
+        if self.state.is_muted(sender):
+            self._send(addr, "[ADMIN_ERROR]|You are muted and cannot send messages")
+            return
+
+        now = time.time()
+        last = client_info.get("last_msg", 0)
+        if self.state.msg_rate_limit > 0 and (now - last) < self.state.msg_rate_limit:
+            wait = round(self.state.msg_rate_limit - (now - last), 1)
+            self._send(addr, f"[RATE_LIMITED]|{wait}")
+            return
+        client_info["last_msg"] = now
+
+        # [IMG]|<base64_data>
+        parts = msg.split("|", 1)
+        if len(parts) < 2:
+            return
+        b64 = parts[1]
+        # validate it's actually base64 before broadcasting
+        try:
+            base64.b64decode(b64, validate=True)
+        except Exception:
+            self._send(addr, "[ADMIN_ERROR]|Invalid image data")
+            return
+
+        self.broadcast(f"[IMG]|{sender}|{b64}")
+        self.state.add_channel_message(sender, f"__IMG__{b64}")
+    # ik this is basically the same as handle_img but i couldnt get it to work any other way - trying to do it in with same method made all dm images show up in the main channel for recipients which was v bad.   
+    def handle_dm_img(self, msg, addr):
+        client_info = self.state.clients.get(addr)
+        if not client_info:
+            return
+        sender = client_info.get("username")
+        if not sender:
+            return
+        if self.state.is_muted(sender):
+            self._send(addr, "[ADMIN_ERROR]|You are muted and cannot send messages")
+            return
+
+        now = time.time()
+        last = client_info.get("last_msg", 0)
+        if self.state.msg_rate_limit > 0 and (now - last) < self.state.msg_rate_limit:
+            wait = round(self.state.msg_rate_limit - (now - last), 1)
+            self._send(addr, f"[RATE_LIMITED]|{wait}")
+            return
+        client_info["last_msg"] = now
+
+        # [DM_IMG]|<recipient>|<base64>
+        parts = msg.split("|", 2)
+        if len(parts) < 3:
+            return
+        recipient, b64 = parts[1], parts[2]
+
+        if not self.state.user_exists(recipient):
+            self._send(addr, "[DM_FAIL]|User not found")
+            return
+        try:
+            base64.b64decode(b64, validate=True)
+        except Exception:
+            self._send(addr, "[ADMIN_ERROR]|Invalid image data")
+            return
+
+        # send to recipient (if online) and echo back to sender
+        wire = f"[DM_IMG]|{sender}|{recipient}|{b64}"
+        self.send_to_user(recipient, wire)
+        self._send(addr, wire)
+        self.state.add_dm(sender, recipient, f"__IMG__{b64}")
+
     def _redact(self, text):
         return " ".join("*" * len(w) for w in text.split(" "))
 
@@ -432,7 +508,7 @@ class NetworkManager:
         text = parts[2].strip()
         if not text:
             return
-
+        # create an id for each disp message so we can expire/redact it later without affecting other msgs
         msg_id = str(uuid.uuid4())
         expires_at = now + seconds
         payload = f"[DISP]|{msg_id}|{sender}|{expires_at}|{text}"
@@ -503,6 +579,13 @@ class NetworkManager:
                     continue
                 if msg.startswith("[DISP]|"):
                     self.handle_disp(msg, addr)
+                    continue
+                if msg.startswith("[IMG]|"):
+                    self.handle_img(msg, addr)
+                    continue
+                # seperate logic for dm images - exact same code but required a little diff stuff tbh
+                if msg.startswith("[DM_IMG]|"):
+                    self.handle_dm_img(msg, addr)
                     continue
                 self.handle_message(msg, addr)
 

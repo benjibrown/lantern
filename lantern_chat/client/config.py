@@ -92,3 +92,5 @@ class Config:
                 os.unlink(_SESSION_FILE)
         except Exception:
             pass
+
+

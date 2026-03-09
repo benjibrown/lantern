@@ -4,6 +4,7 @@ import textwrap
 import subprocess
 import random
 import sys
+import os
 
 # ------ UI class ------
 # next time im not using curses lmao - textual??? it seems better but idk 
@@ -72,6 +73,7 @@ class UI:
         ("/fetch", "Send system info (30s cooldown)"),
         ("/dnd", "Toggle do not disturb"),
         ("/stats", "Show user statistics"),
+        ("/img", "Send an image (file picker)"),
         ("/disp <secs> <msg>", "Send a disappearing message"),
         ("/clear ", "Clear messages from main chat for session"),
         ("/mute ", "Mute a user (admin)"),
@@ -92,12 +94,33 @@ class UI:
         self.input_cursor = 0
         self.scroll_offset = 0
         self.dm_scroll_offset = 0
-        
-        # autocomp stuff 
         self.autocomplete_active = False 
         self.autocomplete_matches = []
         self.autocomplete_selected = 0
+        # maps quantized (r,g,b) -> curses color pair number for image rendering
+        self._img_color_cache = {}
+        self._next_img_slot = 20  # UI uses pairs 1-4 and colors 1,2,3,4,10 — start well clear
 
+
+    def _get_img_color_pair(self, r, g, b):
+        # quantize to reduce number of pairs needed
+        qr, qg, qb = (r >> 5) << 5, (g >> 5) << 5, (b >> 5) << 5
+        key = (qr, qg, qb)
+        if key in self._img_color_cache:
+            return self._img_color_cache[key]
+        slot = self._next_img_slot
+        if slot >= min(curses.COLORS, curses.COLOR_PAIRS):
+            self._img_color_cache[key] = 0
+            return 0
+        try:
+            curses.init_color(slot, qr * 1000 // 255, qg * 1000 // 255, qb * 1000 // 255)
+            curses.init_pair(slot, slot, -1)
+        except curses.error:
+            self._img_color_cache[key] = 0
+            return 0
+        self._next_img_slot += 1
+        self._img_color_cache[key] = slot
+        return slot
 
     def get_autocomp_matches(self, text: str):
         if not text.startswith("/"):
@@ -238,6 +261,7 @@ class UI:
                 "  /fetch     Send system info (30s cooldown)",
                 "  /dnd       Do not disturb (toggle notifications)",
                 "  /clear     Clear messages from main chat for session",
+                "  /img       Send an image (file picker)",
                 "  /disp <s> <msg>  Send a disappearing message",
                 "",
                 "Keybinds:",
@@ -267,6 +291,7 @@ class UI:
                 "/panel   List users, pick one to DM",
                 "/fetch   Send system info (30s cooldown)",
                 "/dnd     Do not disturb (toggle notifications)",
+                "/img     Send an image (file picker)",
                 "/disp <s> <msg>  Send a disappearing message",
                 "",
                 "Press any key to close",
@@ -449,6 +474,110 @@ class UI:
         stdscr.touchwin()
         stdscr.refresh()
 
+    def show_file_picker(self, stdscr):
+        IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+        cwd = os.path.expanduser("~")
+        sel = 0
+        scroll = 0
+
+        def get_entries(directory):
+            entries = []
+            try:
+                names = sorted(os.listdir(directory))
+            except PermissionError:
+                return [("..", True, None)]
+            if directory != "/":
+                entries.append(("..", True, None))
+            for name in names:
+                if name.startswith("."):
+                    continue
+                full = os.path.join(directory, name)
+                is_dir = os.path.isdir(full)
+                ext = os.path.splitext(name)[1].lower()
+                if is_dir or ext in IMAGE_EXTS:
+                    entries.append((name, is_dir, full))
+            return entries
+
+        win = None
+        last_win_size = (0, 0)
+        while True:
+            entries = get_entries(cwd)
+            h, w = stdscr.getmaxyx()
+            win_h = min(len(entries) + 6, h - 8)
+            win_w = min(60, w - 4)
+            y = (h - win_h) // 2
+            x = (w - win_w) // 2
+            if win is None or last_win_size != (win_h, win_w):
+                if win is not None:
+                    win.erase()
+                    win.refresh()
+                    del win
+                stdscr.touchwin()
+                stdscr.refresh()
+                win = curses.newwin(win_h, win_w, y, x)
+                win.keypad(True)
+                win.nodelay(False)
+                last_win_size = (win_h, win_w)
+            else:
+                win.erase()
+            win.border()
+            visible = win_h - 5
+            sel = max(0, min(sel, len(entries) - 1))
+            scroll = max(0, min(scroll, max(0, len(entries) - visible)))
+            if sel < scroll:
+                scroll = sel
+            elif sel >= scroll + visible:
+                scroll = sel - visible + 1
+
+            try:
+                win.addstr(0, 3, " Select Image ", curses.color_pair(2) | curses.A_BOLD)
+                cwd_display = cwd if len(cwd) <= win_w - 4 else "…" + cwd[-(win_w - 7):]
+                win.addstr(1, 2, cwd_display, curses.A_DIM)
+            except curses.error:
+                pass
+
+            for i, (name, is_dir, full) in enumerate(entries[scroll: scroll + visible]):
+                row = i + 2
+                idx = scroll + i
+                label = (name + "/") if is_dir else name
+                label = label[: win_w - 5]
+                attr = curses.color_pair(1) | curses.A_REVERSE if idx == sel else (curses.color_pair(2) | curses.A_DIM if is_dir else curses.A_NORMAL)
+                try:
+                    win.addstr(row, 2, label, attr)
+                except curses.error:
+                    pass
+
+            try:
+                win.addstr(win_h - 2, 2, "↑↓ Navigate  Enter: Select  Esc: Cancel", curses.A_DIM)
+            except curses.error:
+                pass
+
+            win.refresh()
+            ch = win.getch()
+            if ch == 27:
+                win.clear()
+                stdscr.touchwin()
+                stdscr.refresh()
+                return None
+            if ch == curses.KEY_UP and sel > 0:
+                sel -= 1
+            elif ch == curses.KEY_DOWN and sel < len(entries) - 1:
+                sel += 1
+            elif ch in (10, 13):
+                name, is_dir, full = entries[sel]
+                if is_dir:
+                    if name == "..":
+                        cwd = os.path.dirname(cwd)
+                    else:
+                        cwd = full
+                    sel = 0
+                    scroll = 0
+                else:
+                    win.clear()
+                    stdscr.touchwin()
+                    stdscr.refresh()
+                    return full
+
     def _prompt_text(self, stdscr, title: str, prompt: str, max_len: int = 256):
         h, w = stdscr.getmaxyx()
         lines = [title, "", prompt, "", ""]
@@ -570,6 +699,20 @@ class UI:
             lines = []
             for entry in chat_snapshot:
                 text, is_self, ts = entry[0], entry[1], entry[2]
+                img_rows = entry[4] if len(entry) > 4 else None
+
+                if img_rows is not None:
+                    # image entry: label line + one line per image row
+                    ts_prefix = time.strftime("[%H:%M] ", time.localtime(ts)) if ts > 0 else ""
+                    display = text
+                    if is_self and self.config.USERNAME and text.startswith(f"[{self.config.USERNAME}]: "):
+                        display = "[you] " + text[len(f"[{self.config.USERNAME}]: "):]
+                    label = ts_prefix + display
+                    lines.append((label, is_self, text, False, len(ts_prefix), None))
+                    for row in img_rows:
+                        lines.append((None, is_self, text, False, 0, row))
+                    continue
+
                 display_text = text
                 is_system = text.startswith("[system]")
                 if (
@@ -590,7 +733,7 @@ class UI:
                     ts_prefix = time.strftime("[%H:%M] ", time.localtime(ts))
                 for l in textwrap.wrap(ts_prefix + prefix + display_text, chat_w) or [""]:
                     ts_len = len(ts_prefix) if l.startswith(ts_prefix) else 0
-                    lines.append((l, is_self, text, is_system, ts_len))
+                    lines.append((l, is_self, text, is_system, ts_len, None))
 
             total_lines = len(lines)
             scroll = (
@@ -609,10 +752,22 @@ class UI:
             end = total_lines - scroll
             visible_lines = lines[start:end]
 
-            for i, (line, is_self, original_text, is_system, ts_len) in enumerate(
+            for i, (line, is_self, original_text, is_system, ts_len, img_row) in enumerate(
                 visible_lines
             ):
-                if is_system:
+                if img_row is not None:
+                    # render colored image row pixel by pixel
+                    col = 0
+                    for char, r, g, b in img_row:
+                        if col >= chat_w:
+                            break
+                        pair = self._get_img_color_pair(r, g, b)
+                        try:
+                            stdscr.addstr(i, col, char, curses.color_pair(pair))
+                        except curses.error:
+                            pass
+                        col += 1
+                elif is_system:
                     stdscr.addstr(i, 0, line, curses.color_pair(4))
                 elif original_text.startswith("[") and original_text.endswith(
                     " joined]"
@@ -621,7 +776,9 @@ class UI:
                 elif original_text.startswith("[") and original_text.endswith(" left]"):
                     stdscr.addstr(i, 0, line, curses.color_pair(3) | curses.A_DIM)
                 else:
-                    attr = curses.color_pair(1) if is_self else 0
+                    # images: don't apply green highlight so colors show through
+                    is_img_label = original_text.endswith("[image]")
+                    attr = (curses.color_pair(1) if is_self and not is_img_label else 0)
                     if ts_len > 0:
                         stdscr.addstr(i, 0, line[:ts_len], curses.A_DIM)
                         stdscr.addstr(i, ts_len, line[ts_len:], attr)

@@ -43,10 +43,10 @@ class ClientState:
                 self.dm_conversations[other_user] = []
             return self.dm_conversations[other_user]
 
-    def append_dm(self, other_user, text, is_self, ts=0, msg_id=None):
+    def append_dm(self, other_user, text, is_self, ts=0, msg_id=None, img_data=None):
         with self.lock:
             self.ensure_dm_conversation(other_user)
-            self.dm_conversations[other_user].append((text, is_self, ts, msg_id))
+            self.dm_conversations[other_user].append((text, is_self, ts, msg_id, img_data))
             self.dm_conversations[other_user][:] = self.dm_conversations[other_user][-self.max_messages:]
             if msg_id:
                 idx = len(self.dm_conversations[other_user]) - 1

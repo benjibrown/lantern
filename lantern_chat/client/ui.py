@@ -7,6 +7,8 @@ import sys
 import os
 import threading
 
+from lantern_chat.client.state import Message
+
 # ------ UI class ------
 # next time im not using curses lmao - textual??? it seems better but idk 
 # TODO - make UI nicer, colors, improve menus, dnd color highlighting, icons etc
@@ -98,6 +100,9 @@ class UI:
         self.autocomplete_active = False 
         self.autocomplete_matches = []
         self.autocomplete_selected = 0
+        self.input_history = []
+        self.history_idx = -1       # -1 = not browsing history
+        self._history_draft = ""    # saves current draft while browsing
         # maps quantized (r,g,b) -> curses color pair number for image rendering
         self._img_color_cache = {}
         self._next_img_slot = 20  # UI uses pairs 1-4 and colors 1,2,3,4,10 — start well clear
@@ -700,8 +705,8 @@ class UI:
 
             lines = []
             for entry in chat_snapshot:
-                text, is_self, ts = entry[0], entry[1], entry[2]
-                img_rows = entry[4] if len(entry) > 4 else None
+                text, is_self, ts = entry.text, entry.is_self, entry.ts
+                img_rows = entry.img_rows
 
                 if img_rows is not None:
                     # image entry: label line + one line per image row
@@ -909,6 +914,21 @@ class UI:
                         self.autocomplete_selected = (self.autocomplete_selected - 1) % len(self.autocomplete_matches)
                         continue
 
+                    # browse input history if scroll is at bottom
+                    scroll_at_bottom = (
+                        (view == "dm" and dm_target and self.dm_scroll_offset == 0) or
+                        (not (view == "dm" and dm_target) and self.scroll_offset == 0)
+                    )
+                    if self.input_history and scroll_at_bottom:
+                        if self.history_idx == -1:
+                            self._history_draft = self.input_buf
+                            self.history_idx = len(self.input_history) - 1
+                        elif self.history_idx > 0:
+                            self.history_idx -= 1
+                        self.input_buf = self.input_history[self.history_idx]
+                        self.input_cursor = len(self.input_buf)
+                        continue
+
                     if view == "dm" and dm_target:
                         self.dm_scroll_offset += 1
                     else:
@@ -918,6 +938,17 @@ class UI:
                     # nav autocomplete if active 
                     if self.autocomplete_active and self.autocomplete_matches:
                         self.autocomplete_selected = (self.autocomplete_selected + 1) % len(self.autocomplete_matches)
+                        continue
+
+                    # browse input history forward
+                    if self.history_idx != -1:
+                        if self.history_idx < len(self.input_history) - 1:
+                            self.history_idx += 1
+                            self.input_buf = self.input_history[self.history_idx]
+                        else:
+                            self.history_idx = -1
+                            self.input_buf = self._history_draft
+                        self.input_cursor = len(self.input_buf)
                         continue
 
                     if view == "dm" and dm_target and self.dm_scroll_offset > 0:
@@ -939,8 +970,13 @@ class UI:
                     self.input_cursor = 0
                     msg = self.input_buf.strip()
                     self.input_buf = ""
+                    self.history_idx = -1
+                    self._history_draft = ""
                     if not msg:
                         continue
+                    if msg and (not self.input_history or self.input_history[-1] != msg):
+                        self.input_history.append(msg)
+                        self.input_history = self.input_history[-100:]  # cap at 100
                     if self.command_handler.handle_command(msg, stdscr):
                         continue
 
@@ -975,10 +1011,10 @@ class UI:
                             if self.state.send_failed or no_response:
                                 self.state.send_failed = False
                                 self.state.messages.append(
-                                    ("[system] Failed to send (connection error)", True, 0)
+                                    Message(text="[system] Failed to send (connection error)", is_self=True, ts=0)
                                 )
                             else:
-                                self.state.messages.append((out, True, time.time()))
+                                self.state.messages.append(Message(text=out, is_self=True, ts=time.time()))
                             self.state.messages[:] = self.state.messages[
                                 -self.config.MAX_MESSAGES :
                             ]

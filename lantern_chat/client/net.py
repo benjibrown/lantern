@@ -9,6 +9,7 @@ import io
 import os
 
 from lantern_chat.frame import send_msg, recv_msg
+from lantern_chat.client.state import Message
 
 # TODO - split img logic into a seperate file cos maintaining it here is a bit of a pain, also would be nice to have some shared utils for encoding/decoding images between client and server in one place instead of duplicating code in both places since the server and client code are installed with the same pip package 
 
@@ -142,7 +143,7 @@ class NetworkManager:
     def send_img(self, path: str, dm_recipient: str = None):
         if not _PIL_AVAILABLE:
             with self.state.lock:
-                self.state.messages.append(("[system] Pillow not installed — cannot send images", True, 0))
+                self.state.messages.append(Message(text="[system] Pillow not installed — cannot send images", is_self=True, ts=0))
             return
         try:
             filename = os.path.basename(path)
@@ -155,7 +156,7 @@ class NetworkManager:
             # large image fix - shouldnt kill client now
             if len(b64) > 8 * 1024 * 1024:
                 with self.state.lock:
-                    self.state.messages.append(("[system] Image too large to send (max ~8MB)", True, 0))
+                    self.state.messages.append(Message(text="[system] Image too large to send (max ~8MB)", is_self=True, ts=0))
                 return
             if dm_recipient:
                 self._send(f"[DM_IMG]|{dm_recipient}|{filename}|{b64}")
@@ -163,13 +164,13 @@ class NetworkManager:
                 self._send(f"[IMG]|{filename}|{b64}")
         except Exception as e:
             with self.state.lock:
-                self.state.messages.append((f"[system] Failed to send image: {e}", True, 0))
+                self.state.messages.append(Message(text=f"[system] Failed to send image: {e}", is_self=True, ts=0))
     
     # this code is getting very long icl
     def send_img_bytes(self, data: bytes, filename: str, dm_recipient: str = None):
         if not _PIL_AVAILABLE:
             with self.state.lock:
-                self.state.messages.append(("[system] Pillow not installed — cannot send images", True, 0))
+                self.state.messages.append(Message(text="[system] Pillow not installed — cannot send images", is_self=True, ts=0))
             return
         try:
             with Image.open(io.BytesIO(data)) as img:
@@ -178,7 +179,7 @@ class NetworkManager:
                 b64 = base64.b64encode(buf.getvalue()).decode()
             if len(b64) > 8 * 1024 * 1024:
                 with self.state.lock:
-                    self.state.messages.append(("[system] Image too large to send (max ~8MB)", True, 0))
+                    self.state.messages.append(Message(text="[system] Image too large to send (max ~8MB)", is_self=True, ts=0))
                 return
             if dm_recipient:
                 self._send(f"[DM_IMG]|{dm_recipient}|{filename}|{b64}")
@@ -186,7 +187,7 @@ class NetworkManager:
                 self._send(f"[IMG]|{filename}|{b64}")
         except Exception as e:
             with self.state.lock:
-                self.state.messages.append((f"[system] Failed to send image: {e}", True, 0))
+                self.state.messages.append(Message(text=f"[system] Failed to send image: {e}", is_self=True, ts=0))
 
     def request_dm_history(self, other_user: str):
         self._send(f"[REQ_DM_HISTORY]|{other_user}")
@@ -210,7 +211,7 @@ class NetworkManager:
                     )
                 else:
                     self.state.messages.append(
-                    ("[system] Cannot run admin command: no session token from server", True, 0)
+                    Message(text="[system] Cannot run admin command: no session token from server", is_self=True, ts=0)
                 )
             return
         self._send(f"[ADMIN_CMD]|{command}|{self.config.USERNAME}|{self.state.session_token}|{payload}")
@@ -279,7 +280,7 @@ class NetworkManager:
                                     sender = m.get("sender", "")
                                     is_self = sender == self.config.USERNAME
                                     ts = m.get("timestamp", 0)
-                                    self.state.messages.append((text, is_self, ts))
+                                    self.state.messages.append(Message(text=text, is_self=is_self, ts=ts))
                                 self.state.messages[:] = self.state.messages[
                                     -self.config.MAX_MESSAGES :
                                 ]
@@ -350,7 +351,7 @@ class NetworkManager:
                                 self.state.append_dm(self.state.dm_target, line, True)
                         else:
                             for line in lines:
-                                self.state.messages.append((line, True, 0))
+                                self.state.messages.append(Message(text=line, is_self=True, ts=0))
                             self.state.messages[:] = self.state.messages[
                                 -self.config.MAX_MESSAGES :
                             ]
@@ -374,7 +375,7 @@ class NetworkManager:
                         if self.state.current_view == "dm" and self.state.dm_target:
                             self.state.append_dm(self.state.dm_target, notice, True)
                         else:
-                            self.state.messages.append((notice, True, 0))
+                            self.state.messages.append(Message(text=notice, is_self=True, ts=0))
                         continue
 
                     if msg.startswith("[DM]|"):
@@ -424,7 +425,7 @@ class NetworkManager:
                         if self.state.current_view == "dm" and self.state.dm_target:
                             self.state.append_dm(self.state.dm_target, notice, True)
                         else:
-                            self.state.messages.append((notice, True, 0))
+                            self.state.messages.append(Message(text=notice, is_self=True, ts=0))
                             self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                         continue
 
@@ -442,7 +443,7 @@ class NetworkManager:
                                     is_self = sender == self.config.USERNAME
                                     ts = m.get("timestamp", 0)
                                     self.state.dm_conversations[other].append(
-                                        (f"[{sender}]: {text}", is_self, ts)
+                                        Message(text=f"[{sender}]: {text}", is_self=is_self, ts=ts)
                                     )
                                 self.state.dm_conversations[other][:] = (
                                     self.state.dm_conversations[other][
@@ -483,7 +484,7 @@ class NetworkManager:
                         if self.state.current_view == "dm" and self.state.dm_target:
                             self.state.append_dm(self.state.dm_target, notice, True)
                         else:
-                            self.state.messages.append((notice, True, 0))
+                            self.state.messages.append(Message(text=notice, is_self=True, ts=0))
                             self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                         continue
 
@@ -497,7 +498,7 @@ class NetworkManager:
                                 True,
                             )
                         else:
-                            self.state.messages.append((f"[system] {reason}", True, 0))
+                            self.state.messages.append(Message(text=f"[system] {reason}", is_self=True, ts=0))
                             self.state.messages[:] = self.state.messages[
                                 -self.config.MAX_MESSAGES :
                             ]
@@ -512,7 +513,7 @@ class NetworkManager:
                                 True,
                             )
                         else:
-                            self.state.messages.append((f"[system] {detail}", True, 0))
+                            self.state.messages.append(Message(text=f"[system] {detail}", is_self=True, ts=0))
                             self.state.messages[:] = self.state.messages[
                                 -self.config.MAX_MESSAGES :
                             ]
@@ -546,7 +547,7 @@ class NetworkManager:
                             except Exception:
                                 img_rows = None
                             with self.state.lock:
-                                entry = (label, is_self, time.time(), None, img_rows)
+                                entry = Message(text=label, is_self=is_self, ts=time.time(), img_rows=img_rows)
                                 if self.state.current_view == "dm" and self.state.dm_target:
                                     self.state.append_dm(self.state.dm_target, label, is_self, time.time(), img_data=img_rows)
                                 else:
@@ -566,7 +567,7 @@ class NetworkManager:
                                     self.state.append_dm(self.state.dm_target, display, is_self, time.time(), msg_id)
                                 else:
                                     idx = len(self.state.messages)
-                                    self.state.messages.append((display, is_self, time.time(), msg_id))
+                                    self.state.messages.append(Message(text=display, is_self=is_self, ts=time.time(), msg_id=msg_id))
                                     self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                                     self.state.disp_index[msg_id] = ("channel", idx)
                         continue
@@ -583,7 +584,7 @@ class NetworkManager:
                         f"[{self.config.USERNAME}]:"
                     ) or msg.startswith(f"[{self.config.USERNAME}] system")
                     self.state.messages.append(
-                        (msg[: self.config.MAX_MESSAGE_LEN], is_self, time.time())
+                        Message(text=msg[: self.config.MAX_MESSAGE_LEN], is_self=is_self, ts=time.time())
                     )
                     self.state.messages[:] = self.state.messages[
                         -self.config.MAX_MESSAGES :

@@ -1,6 +1,8 @@
 import sys
 import threading
 
+from lantern_chat.client.state import Message
+
 
 class CommandHandler:
     def __init__(self, config, state, network, ui):
@@ -53,7 +55,7 @@ class CommandHandler:
                     if self.state.current_view == "dm" and self.state.dm_target:
                         self.state.append_dm(self.state.dm_target, "[system] cannot DM yourself", True)
                     else:
-                        self.state.messages.append(("[system] cannot DM yourself", True, 0))
+                        self.state.messages.append(Message(text="[system] cannot DM yourself", is_self=True, ts=0))
                 return True
             self.state.pending_dm_history = target
             self.network.request_dm_history(target)
@@ -70,7 +72,7 @@ class CommandHandler:
                 if self.state.current_view == "dm" and self.state.dm_target:
                     self.state.append_dm(self.state.dm_target, f"[system] Do not disturb {status}", True)
                 else:
-                    self.state.messages.append((f"[system] Do not disturb {status}", True, 0))
+                    self.state.messages.append(Message(text=f"[system] Do not disturb {status}", is_self=True, ts=0))
                     self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
             return True
         if msg.startswith("/stats"):
@@ -85,7 +87,7 @@ class CommandHandler:
                 if self.state.current_view == "dm" and self.state.dm_target:
                     self.state.append_dm(self.state.dm_target, notice, True)
                 else:
-                    self.state.messages.append((notice, True, 0))
+                    self.state.messages.append(Message(text=notice, is_self=True, ts=0))
                     self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
             return True
 
@@ -98,7 +100,7 @@ class CommandHandler:
                         self.state.append_dm(self.state.dm_target, "[system] Usage: /mute <user>, /unmute <user>, /ban <user>, /unban <user>", True)
                     else:
                         self.state.messages.append(
-                        ("[system] Usage: /mute <user>, /unmute <user>, /ban <user>, /unban <user>", True, 0)
+                        Message(text="[system] Usage: /mute <user>, /unmute <user>, /ban <user>, /unban <user>", is_self=True, ts=0)
                     )
                         self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                 return True
@@ -123,7 +125,7 @@ class CommandHandler:
                         self.state.append_dm(self.state.dm_target, "[system] Usage: /changeusername <old_username> <new_username>", True)
                     else:
                         self.state.messages.append(
-                        ("[system] Usage: /changeusername <old_username> <new_username>", True, 0)
+                        Message(text="[system] Usage: /changeusername <old_username> <new_username>", is_self=True, ts=0)
                     )
                         self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                 return True
@@ -148,7 +150,7 @@ class CommandHandler:
                     if self.state.current_view == "dm" and self.state.dm_target:
                         self.state.append_dm(self.state.dm_target, notice, True)
                     else:
-                        self.state.messages.append((notice, True, 0))
+                        self.state.messages.append(Message(text=notice, is_self=True, ts=0))
                         self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                 return True
             seconds, text = int(parts[1]), parts[2]

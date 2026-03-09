@@ -1,5 +1,15 @@
 import threading
 import time
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Message:
+    text: str
+    is_self: bool
+    ts: float = 0.0
+    msg_id: str = None
+    img_rows: list = None
 
 
 class ClientState:
@@ -46,7 +56,7 @@ class ClientState:
     def append_dm(self, other_user, text, is_self, ts=0, msg_id=None, img_data=None):
         with self.lock:
             self.ensure_dm_conversation(other_user)
-            self.dm_conversations[other_user].append((text, is_self, ts, msg_id, img_data))
+            self.dm_conversations[other_user].append(Message(text=text, is_self=is_self, ts=ts, msg_id=msg_id, img_rows=img_data))
             self.dm_conversations[other_user][:] = self.dm_conversations[other_user][-self.max_messages:]
             if msg_id:
                 idx = len(self.dm_conversations[other_user]) - 1
@@ -67,11 +77,11 @@ class ClientState:
             if loc[0] == "channel":
                 idx = loc[1]
                 if idx < len(self.messages):
-                    t, is_self, ts, _ = self.messages[idx]
-                    self.messages[idx] = (self._redact_text(t, redacted), is_self, ts, None)
+                    msg = self.messages[idx]
+                    self.messages[idx] = Message(text=self._redact_text(msg.text, redacted), is_self=msg.is_self, ts=msg.ts)
             elif loc[0] == "dm":
                 conv_key, idx = loc[1], loc[2]
                 conv = self.dm_conversations.get(conv_key, [])
                 if idx < len(conv):
-                    t, is_self, ts, _ = conv[idx]
-                    conv[idx] = (self._redact_text(t, redacted), is_self, ts, None)
+                    msg = conv[idx]
+                    conv[idx] = Message(text=self._redact_text(msg.text, redacted), is_self=msg.is_self, ts=msg.ts)

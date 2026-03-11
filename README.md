@@ -16,6 +16,8 @@ A curses based chat client and server.
 
 
 ## Getting Started
+> Note: Lantern is not designed to be hugely secure, so don't use it for anything you care about. Please ...
+> Additionally, this has been tested primarily on Linux, so there are likely to be some issues on other platforms. If you find any, please report them or better yet, fix them and make a pull request. I am unable to test on Windows so I would appreciate any PR's that add support for it.
 
 ### Prerequisites
 

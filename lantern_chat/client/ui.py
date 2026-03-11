@@ -207,11 +207,13 @@ class UI:
             user_count = len(self.state.users)
             view = self.state.current_view
             dm_target = self.state.dm_target
+            total_unread = sum(self.state.unread_dms.values())
 
+        unread_str = f" │ DMs: {total_unread} unread" if total_unread else ""
         if view == "dm" and dm_target:
             status = f" {clock} │ DM: {dm_target[:20]} │ ping: {ping_str} │ dnd {'on' if self.state.dnd else 'off'}  │ /back "
         else:
-            status = f" {clock} │ users: {user_count} │ ping: {ping_str} │ up: {uptime_str} │ dnd: {'on' if self.state.dnd else 'off'}"
+            status = f" {clock} │ users: {user_count} │ ping: {ping_str} │ up: {uptime_str} │ dnd: {'on' if self.state.dnd else 'off'}{unread_str}"
         stdscr.addstr(y, 0, status[: w - 1].ljust(w - 1), curses.A_DIM)
 
     def show_help(self, stdscr):
@@ -438,15 +440,18 @@ class UI:
         while True:
             for i, (u, status, ts) in enumerate(ul[: win_h - 4]):
                 try:
-
                     display_name = f"{u} [ADMIN]" if u in self.state.admins else u
                     ts_str = (
                         time.strftime("%m/%d %H:%M", time.localtime(ts)) if ts else "—"
                     )
-                    line = f" {display_name[:16]:16}  {status:8} {ts_str}"
+                    unread = self.state.unread_dms.get(u, 0)
+                    unread_badge = f" ({unread})" if unread else ""
+                    line = f" {(display_name + unread_badge)[:16]:16}  {status:8} {ts_str}"
                     is_selected = i == sel
                     if is_selected:
                         attr = curses.color_pair(1) | curses.A_REVERSE
+                    elif unread:
+                        attr = curses.color_pair(2) | curses.A_BOLD
                     elif status.lower().startswith("off"):
                         attr = curses.A_DIM
                     else:
@@ -474,6 +479,7 @@ class UI:
                     self.state.dm_target = target
                     self.state.current_view = "dm"
                     self.state.ensure_dm_conversation(target)
+                    self.state.unread_dms.pop(target, None)
                 self.state.pending_dm_history = target
                 self.network.request_dm_history(target)
                 break
@@ -703,6 +709,7 @@ class UI:
                 else:
                     chat_snapshot = list(self.state.messages)
                 user_snapshot = sorted(self.state.users)
+                unread_snapshot = dict(self.state.unread_dms)
 
             lines = []
             for entry in chat_snapshot:
@@ -798,7 +805,11 @@ class UI:
                 label = u
                 if u in self.state.admins:
                     label = f"{u} [ADMIN]"
-                stdscr.addstr(i, chat_w + 2, label[: user_w - 2])
+                unread = unread_snapshot.get(u, 0)
+                if unread:
+                    label = f"{label} ({unread})"
+                attr = curses.color_pair(2) | curses.A_BOLD if unread else 0
+                stdscr.addstr(i, chat_w + 2, label[: user_w - 2], attr)
 
             INPUT_Y = h - 3
             SEP_Y = h - 2

@@ -44,6 +44,9 @@ class ClientState:
         self.banned = False 
         self.ban_reason = ""
 
+        # unread DM counts per user (cleared when that DM convo is opened)
+        self.unread_dms = {}
+
         # msg_id -> index in self.messages or (conv_key, index) for DMs
         self.disp_index = {}
 

@@ -1,239 +1,108 @@
-import socket
-import threading
+import json
+import base64
 import time
 import platform
 import subprocess
-import json
-import base64
-import io
-import os
 
-from lantern_chat.frame import send_msg, recv_msg
+from lantern_chat.frame import recv_msg
 from lantern_chat.client.state import Message
-
-# TODO - split img logic into a seperate file cos maintaining it here is a bit of a pain, also would be nice to have some shared utils for encoding/decoding images between client and server in one place instead of duplicating code in both places since the server and client code are installed with the same pip package 
-
-try:
-    from PIL import Image
-    _PIL_AVAILABLE = True
-except ImportError:
-    _PIL_AVAILABLE = False
-
-IMG_MAX_WIDTH = 80
-IMG_MAX_HEIGHT = 40
+from lantern_chat.client.net.image import _img_to_rows
 
 
-def _img_to_rows(data: bytes):
-    # converts each img row into bytes :)
-    # also works for gifs but will only take the first frame, which is probably fine for now lol
-    if not _PIL_AVAILABLE:
-        return None
-    img = Image.open(io.BytesIO(data)).convert("RGB")
-    # terminal chars are ~2x taller than wide so halve the height
-    w = min(img.width, IMG_MAX_WIDTH)
-    h = max(1, min(int(img.height * (w / img.width) * 0.45), IMG_MAX_HEIGHT))
-    img = img.resize((w, h), Image.LANCZOS)
-    rows = []
-    for y in range(h):
-        row = []
-        for x in range(w):
-            r, g, b = img.getpixel((x, y))
-            row.append(("█", r, g, b))
-        rows.append(row)
-    return rows
-
-
-def get_clipboard_image():
-    # an attempt to get imgs from cliboard - this is so cancer 
-    # only tested on linux so if u have a mac please lmk.
-    # if doesnt work, then no big deal as you can still send with /img 
-    # returns (bytes, filename) or (None, None) if no image found or on error 
-
-    system = platform.system()
-    try:
-        if system == "Darwin":
-            # osascript can read PNG data from the macOS clipboard
-            script = (
-                'set img to (get the clipboard as «class PNGf»)\n'
-                'return img as string'
-            )
-            result = subprocess.run(
-                ["osascript", "-e", script],
-                capture_output=True,
-            )
-            if result.returncode == 0 and result.stdout:
-                return result.stdout, "clipboard.png"
-        else:
-            # Try Wayland first, then X11 - wayland is so much better frfr but understand not everyone uses it yet
-            for cmd in (
-                ["wl-paste", "--type", "image/png", "--no-newline"],
-                ["xclip", "-selection", "clipboard", "-t", "image/png", "-o"],
-            ):
-                result = subprocess.run(cmd, capture_output=True)
-                if result.returncode == 0 and result.stdout:
-                    return result.stdout, "clipboard.png"
-    except Exception:
-        pass
-    return None, None
-
-
-class NetworkManager:
-    def __init__(self, config, state):
-        self.config = config
-        self.state = state
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._send_lock = threading.Lock()  # guards all writes to self.sock
-        self.last_ping_sent = 0.0
-        self.last_ping_recv = 0.0
-        self.ping_ms = None
-
-    def _send(self, msg: str):
-        # all sends go through here to avoid concurrent write races between threads
-        # peak niche chat lol
-        with self._send_lock:
-            send_msg(self.sock, msg)
-
-    def connect(self):
-        try:
-            self.sock.connect((self.config.SERVER_HOST, self.config.SERVER_PORT))
-            self._send(f"[LOGIN]|{self.config.USERNAME}|{self.config.PASSWORD}")
-        except OSError:
-            with self.state.lock:
-                self.state.auth_failed = True
-
-    def send_join(self):
-        self._send(f"[JOIN]|{self.config.USERNAME}")
-
-    def send_message(self, msg):
-        try:
-            self._send(msg)
-        except OSError:
-            with self.state.lock:
-                self.state.send_failed = True
-
-    def send_leave(self):
-        try:
-            self._send(f"[LEAVE]|{self.config.USERNAME}")
-        except Exception:
-            pass
-
-    def request_user_list(self):
-        self._send(f"[REQ_USERS]|{self.config.USERNAME}")
-
-    def request_users_detailed(self):
-        self._send(f"[REQ_USERS_DETAILED]|{self.config.USERNAME}")
-
-    def request_user_stats(self, username: str):
-        self._send(f"[REQ_USER_STATS]|{username}")
-
-    def send_dm(self, recipient: str, text: str):
-        try:
-            self._send(f"[DM]|{recipient}|{text}")
-        except OSError:
-            with self.state.lock:
-                self.state.send_failed = True
-
-    def send_disp(self, seconds: int, text: str):
-        try:
-            self._send(f"[DISP]|{seconds}|{text}")
-        except OSError:
-            with self.state.lock:
-                self.state.send_failed = True
-
-    def send_img(self, path: str, dm_recipient: str = None):
-        if not _PIL_AVAILABLE:
-            with self.state.lock:
-                self.state.messages.append(Message(text="[system] Pillow not installed — cannot send images", is_self=True, ts=0))
-            return
-        try:
-            filename = os.path.basename(path)
-            with Image.open(path) as img:
-                img.load()  # force first frame for GIFs
-                buf = io.BytesIO()
-                img.convert("RGB").save(buf, format="PNG")
-                b64 = base64.b64encode(buf.getvalue()).decode()
-
-            # large image fix - shouldnt kill client now
-            if len(b64) > 8 * 1024 * 1024:
-                with self.state.lock:
-                    self.state.messages.append(Message(text="[system] Image too large to send (max ~8MB)", is_self=True, ts=0))
-                return
-            if dm_recipient:
-                self._send(f"[DM_IMG]|{dm_recipient}|{filename}|{b64}")
-            else:
-                self._send(f"[IMG]|{filename}|{b64}")
-        except Exception as e:
-            with self.state.lock:
-                self.state.messages.append(Message(text=f"[system] Failed to send image: {e}", is_self=True, ts=0))
-    
-    # this code is getting very long icl
-    def send_img_bytes(self, data: bytes, filename: str, dm_recipient: str = None):
-        if not _PIL_AVAILABLE:
-            with self.state.lock:
-                self.state.messages.append(Message(text="[system] Pillow not installed — cannot send images", is_self=True, ts=0))
-            return
-        try:
-            with Image.open(io.BytesIO(data)) as img:
-                buf = io.BytesIO()
-                img.convert("RGB").save(buf, format="PNG")
-                b64 = base64.b64encode(buf.getvalue()).decode()
-            if len(b64) > 8 * 1024 * 1024:
-                with self.state.lock:
-                    self.state.messages.append(Message(text="[system] Image too large to send (max ~8MB)", is_self=True, ts=0))
-                return
-            if dm_recipient:
-                self._send(f"[DM_IMG]|{dm_recipient}|{filename}|{b64}")
-            else:
-                self._send(f"[IMG]|{filename}|{b64}")
-        except Exception as e:
-            with self.state.lock:
-                self.state.messages.append(Message(text=f"[system] Failed to send image: {e}", is_self=True, ts=0))
-
-    def request_dm_history(self, other_user: str):
-        self._send(f"[REQ_DM_HISTORY]|{other_user}")
-
-    def request_fetch(self):
-        self._send(f"[REQ_FETCH]|{json.dumps(self.system_fetch())}")
-
-    def request_max_msg_len(self):
-        self._send(f"[REQ_MAX_MSG_LEN]|{self.config.USERNAME}")
-
-    def send_admin_command(self, command: str, payload: str):
-        if not self.state.session_token:
-            # if we do not have a token yet, the server will not accept admin commands
-            with self.state.lock:
-                # append to messages if on main chat, append to dm if in dms 
-                if self.state.in_dm:
-                    self.state.append_dm(
-                        self.state.dm_conversation_partner,
-                        "[system] Cannot run admin command: no session token from server",
-                        True,
-                    )
-                else:
-                    self.state.messages.append(
-                    Message(text="[system] Cannot run admin command: no session token from server", is_self=True, ts=0)
-                )
-            return
-        self._send(f"[ADMIN_CMD]|{command}|{self.config.USERNAME}|{self.state.session_token}|{payload}")
-
-    def keepalive(self):
-        while self.state.running:
-            try:
-                self.last_ping_sent = time.time()
-                self._send("[ping]")
-                time.sleep(5)
-            except Exception:
-                pass
-
+class ReceiveMixin:
     def receive(self):
         while self.state.running:
             try:
                 msg = recv_msg(self.sock)
                 if msg is None:
-                    # server closed the connection
-                    with self.state.lock:
-                        self.state.running = False
-                    break
+                    if self.state.banned:
+                        break
+                    # attempt reconnect
+                    for attempt in range(1, 6):
+                        wait = 2 ** (attempt - 1)  # 1, 2, 4, 8, 16
+                        notice = Message(text=f"[system] disconnected — reconnecting in {wait}s (attempt {attempt}/5)...", is_self=True, ts=time.time())
+                        with self.state.lock:
+                            self.state.messages.append(notice)
+                        time.sleep(wait)
+                        try:
+                            # create a fresh socket
+                            import socket as _socket
+                            self.sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+                            self.sock.connect((self.config.SERVER_HOST, self.config.SERVER_PORT))
+                            # re-authenticate
+                            self._send(f"[LOGIN]|{self.config.USERNAME}|{self.config.PASSWORD}")
+                            with self.state.lock:
+                                self.state.authenticated = False
+                                self.state.channel_history_ready = False
+                                self.state.channel_history_buffer = []
+                            # wait for auth
+                            deadline = time.time() + 10
+                            while time.time() < deadline:
+                                m = recv_msg(self.sock)
+                                if m is None:
+                                    break
+                                with self.state.lock:
+                                    self.state.last_received_from_server = time.time()
+                                if m.startswith("[AUTH_OK]"):
+                                    parts = m.split("|", 1)
+                                    if len(parts) > 1:
+                                        with self.state.lock:
+                                            self.state.session_token = parts[1]
+                                    self.send_join()
+                                    break
+                                elif m.startswith("[AUTH_FAIL]"):
+                                    break
+                            with self.state.lock:
+                                reconnected = self.state.authenticated or self.state.channel_history_ready
+                            if not reconnected:
+                                # wait for history
+                                deadline2 = time.time() + 10
+                                while time.time() < deadline2:
+                                    m = recv_msg(self.sock)
+                                    if m is None:
+                                        break
+                                    with self.state.lock:
+                                        self.state.last_received_from_server = time.time()
+                                    # handle CHANNEL_HISTORY and CHANNEL_HISTORY_END inline
+                                    if m.startswith("[CHANNEL_HISTORY]|"):
+                                        parts = m.split("|", 2)
+                                        if len(parts) == 3:
+                                            try:
+                                                idx = int(parts[1])
+                                                chunk = parts[2]
+                                                with self.state.lock:
+                                                    while len(self.state.channel_history_buffer) <= idx:
+                                                        self.state.channel_history_buffer.append("")
+                                                    self.state.channel_history_buffer[idx] = chunk
+                                            except Exception:
+                                                pass
+                                    elif m == "[CHANNEL_HISTORY_END]":
+                                        with self.state.lock:
+                                            self.state.channel_history_ready = True
+                                            self.state.authenticated = True
+                                        break
+                                    elif m.startswith("[USERS]|"):
+                                        with self.state.lock:
+                                            self.state.authenticated = True
+                                        break
+                            with self.state.lock:
+                                ok = self.state.authenticated
+                            if ok:
+                                notice2 = Message(text="[system] reconnected!", is_self=True, ts=time.time())
+                                with self.state.lock:
+                                    self.state.messages.append(notice2)
+                                break  # break out of retry loop, back to main receive loop
+                        except Exception:
+                            pass
+                    else:
+                        # all retries failed
+                        notice = Message(text="[system] could not reconnect to server. closing.", is_self=True, ts=time.time())
+                        with self.state.lock:
+                            self.state.messages.append(notice)
+                            self.state.running = False
+                    if not self.state.running:
+                        break
+                    continue  # continue the outer while loop with the new socket
 
                 with self.state.lock:
                     self.state.last_received_from_server = time.time()
@@ -394,7 +263,10 @@ class NetworkManager:
                                 from_user, f"[{from_user}]: {text}", False,
                                 float(_ts) if _ts else time.time()
                             )
-                            
+                            with self.state.lock:
+                                if not (self.state.current_view == "dm" and self.state.dm_target == from_user):
+                                    self.state.unread_dms[from_user] = self.state.unread_dms.get(from_user, 0) + 1
+
                             if not self.state.dnd:
                                 try:
                                     if platform.system() == "Darwin":
@@ -532,6 +404,10 @@ class NetworkManager:
                             except Exception:
                                 img_rows = None
                             self.state.append_dm(conv_key, label, is_self, time.time(), img_data=img_rows)
+                            if not is_self:
+                                with self.state.lock:
+                                    if not (self.state.current_view == "dm" and self.state.dm_target == conv_key):
+                                        self.state.unread_dms[conv_key] = self.state.unread_dms.get(conv_key, 0) + 1
                         continue
 
                     if msg.startswith("[IMG]|"):
@@ -608,22 +484,3 @@ class NetworkManager:
 
             except Exception:
                 time.sleep(0.1)
-
-    def start_threads(self):
-        threading.Thread(target=self.receive, daemon=True).start()
-        threading.Thread(target=self.keepalive, daemon=True).start()
-
-    def close(self):
-        try:
-            self.sock.close()
-        except Exception:
-            pass
-
-    def system_fetch(self):
-        return {
-            "OS": f"{platform.system()} {platform.release()}",
-            "Kernel": platform.version().split()[0],
-            "Host": platform.node(),
-            "Arch": platform.machine(),
-        }
-

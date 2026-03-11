@@ -87,14 +87,15 @@ class NetworkManager:
 
     def send_user_list_detailed(self, addr, requesting_username: str):
         online = set(info["username"] for info in self.state.clients.values())
-        last_dm = self.state.get_last_dm_time_for_user(requesting_username)
-        all_users = set(online) | set(last_dm)
+        all_registered = set(self.state.users.keys())
+        all_users = all_registered | online
         entries = []
         for u in sorted(all_users):
             if self.state.is_banned(u):
                 continue
             status = "online" if u in online else "offline"
-            ts = last_dm.get(u, 0)
+            last_dm_map = self.state.get_last_dm_time_for_user(requesting_username)
+            ts = last_dm_map.get(u, 0)
             entries.append(f"{u},{status},{ts}")
         self._send(addr, f"[USERS_DETAILED]|{';'.join(entries)}")
 

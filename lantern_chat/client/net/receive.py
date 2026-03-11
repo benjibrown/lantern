@@ -439,13 +439,9 @@ class ReceiveMixin:
                             is_self = sender == self.config.USERNAME
                             display = f"[{sender}]: {text}"
                             with self.state.lock:
-                                if self.state.current_view == "dm" and self.state.dm_target:
-                                    self.state.append_dm(self.state.dm_target, display, is_self, time.time(), msg_id)
-                                else:
-                                    idx = len(self.state.messages)
-                                    self.state.messages.append(Message(text=display, is_self=is_self, ts=time.time(), msg_id=msg_id))
-                                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
-                                    self.state.disp_index[msg_id] = ("channel", idx)
+                                self.state.messages.append(Message(text=display, is_self=is_self, ts=time.time(), msg_id=msg_id))
+                                self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                                self.state.disp_index[msg_id] = ("channel", len(self.state.messages) - 1)
                         continue
 
                     if msg.startswith("[DISP_EXPIRE]|"):

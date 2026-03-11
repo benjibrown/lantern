@@ -143,15 +143,17 @@ class CommandHandler:
             return True
 
         if msg.startswith("/disp "):
+            with self.state.lock:
+                in_dm = self.state.current_view == "dm" and bool(self.state.dm_target)
+                dm_target = self.state.dm_target
+            if in_dm:
+                self.state.append_dm(dm_target, "[system] /disp is not supported in DMs", True)
+                return True
             parts = msg.split(None, 2)
             if len(parts) < 3 or not parts[1].isdigit():
-                notice = "[system] Usage: /disp <seconds> <message>"
                 with self.state.lock:
-                    if self.state.current_view == "dm" and self.state.dm_target:
-                        self.state.append_dm(self.state.dm_target, notice, True)
-                    else:
-                        self.state.messages.append(Message(text=notice, is_self=True, ts=0))
-                        self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                    self.state.messages.append(Message(text="[system] Usage: /disp <seconds> <message>", is_self=True, ts=0))
+                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                 return True
             seconds, text = int(parts[1]), parts[2]
             self.network.send_disp(seconds, text)

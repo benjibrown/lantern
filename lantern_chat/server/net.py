@@ -334,14 +334,21 @@ class NetworkManager:
             self.state.add_channel_message("system", info)
             return
 
-        if command == "changeusername":
+        if command == "rename":
             # rest: "<old_name>|<new_name>"
             if "|" not in rest:
-                self._send(addr, "[ADMIN_ERROR]|/changeusername requires 'old_name|new_name'")
+                self._send(addr, "[ADMIN_ERROR]|/rename requires 'old_name|new_name'")
                 return
             old_name, new_name = [p.strip() for p in rest.split("|", 1)]
             if not old_name or not new_name:
                 self._send(addr, "[ADMIN_ERROR]|Both old and new usernames are required")
+                return
+            if len(new_name) > 16:
+                self._send(addr, "[ADMIN_ERROR]|New username too long (max 16 characters)")
+                return
+
+            if any(c in BANNED_CHARS for c in new_name):
+                self._send(addr, "[ADMIN_ERROR]|New username contains illegal characters")
                 return
             if not self.state.user_exists(old_name):
                 self._send(addr, f"[ADMIN_ERROR]|User '{old_name}' not found")

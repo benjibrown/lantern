@@ -83,7 +83,7 @@ class UI:
         ("/unmute ", "Unmute a user (admin)"),
         ("/ban ", "Ban a user (admin)"),
         ("/unban ", "Unban a user (admin)"),
-        ("/changeusername ", "Change username (admin)"),
+        ("/rename ", "Change username (admin)"),
         ("/channel", "Switch to channel view"),
         ("/help", "Show help menu"),
     ]

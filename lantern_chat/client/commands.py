@@ -117,21 +117,21 @@ class CommandHandler:
             self.network.send_admin_command(cmd, payload)
             return True
 
-        if msg.startswith("/changeusername"):
+        if msg.startswith("/rename"):
             parts = msg.split()
             if len(parts) != 3:
                 with self.state.lock:
                     if self.state.current_view == "dm" and self.state.dm_target:
-                        self.state.append_dm(self.state.dm_target, "[system] Usage: /changeusername <old_username> <new_username>", True)
+                        self.state.append_dm(self.state.dm_target, "[system] Usage: /rename <old_username> <new_username>", True)
                     else:
                         self.state.messages.append(
-                        Message(text="[system] Usage: /changeusername <old_username> <new_username>", is_self=True, ts=0)
+                        Message(text="[system] Usage: /rename <old_username> <new_username>", is_self=True, ts=0)
                     )
                         self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                 return True
             _, old_name, new_name = parts
             payload = f"{old_name}|{new_name}"
-            self.network.send_admin_command("changeusername", payload)
+            self.network.send_admin_command("rename", payload)
             return True
         # img cmd handling - might make keybind
         if msg == "/img":

@@ -25,8 +25,12 @@ class ReceiveMixin:
                             self.state.messages.append(notice)
                         time.sleep(wait)
                         try:
-                            # create a fresh socket
+                            # close old socket before creating a fresh one
                             import socket as _socket
+                            try:
+                                self.sock.close()
+                            except Exception:
+                                pass
                             self.sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
                             self.sock.connect((self.config.SERVER_HOST, self.config.SERVER_PORT))
                             # re-authenticate
@@ -35,6 +39,7 @@ class ReceiveMixin:
                                 self.state.authenticated = False
                                 self.state.channel_history_ready = False
                                 self.state.channel_history_buffer = []
+                                self.state.disp_index = {}
                             # wait for auth
                             deadline = time.time() + 10
                             while time.time() < deadline:
@@ -269,21 +274,24 @@ class ReceiveMixin:
 
                             if not self.state.dnd:
                                 try:
+                                    safe_user = ''.join(c for c in from_user if c.isalnum() or c in '-_.')
                                     if platform.system() == "Darwin":
                                         subprocess.run(
                                             [
                                                 "osascript",
                                                 "-e",
-                                                f'display notification "DM from {from_user}" with title "Lantern"',
-                                            ]
+                                                f'display notification "DM from {safe_user}" with title "Lantern"',
+                                            ],
+                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                         )
                                     elif platform.system() == "Linux":
                                         subprocess.run(
                                             [
                                                 "notify-send",
                                                 "Lantern",
-                                                f"DM from {from_user}",
-                                            ]
+                                                f"DM from {safe_user}",
+                                            ],
+                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                         )
                                 except Exception:
                                     pass
@@ -465,8 +473,9 @@ class ReceiveMixin:
                     if not is_self and not self.state.dnd:
                         try:
                             if platform.system() == "Darwin":
+                                safe_notif = msg[:80].replace('"', '').replace('\\', '')
                                 subprocess.Popen(
-                                    ["osascript", "-e", f'display notification "{msg[:80]}" with title "Lantern"'],
+                                    ["osascript", "-e", f'display notification "{safe_notif}" with title "Lantern"'],
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 )
                             elif platform.system() == "Linux":

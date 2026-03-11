@@ -47,6 +47,9 @@ class ClientState:
         # unread DM counts per user (cleared when that DM convo is opened)
         self.unread_dms = {}
 
+        # user stats cache from /stats command
+        self.user_stats = None
+
         # msg_id -> index in self.messages or (conv_key, index) for DMs
         self.disp_index = {}
 

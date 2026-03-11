@@ -190,6 +190,7 @@ class NetworkManager:
                 conn.close()
             except Exception:
                 pass
+        self.state.clear_session(username)
         print(f"[red][-][/red] {username} left")
         self.broadcast(f"[{username} left]")
         self.send_user_list()

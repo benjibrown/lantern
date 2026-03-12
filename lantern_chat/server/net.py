@@ -438,7 +438,7 @@ class NetworkManager:
             return
 
         self.broadcast(f"[IMG]|{sender}|{filename}|{b64}")
-        self.state.add_channel_message(sender, f"[image: {filename}]")
+        self.state.add_channel_message(sender, f"[{sender}]: [image: {filename}]")
     # ik this is basically the same as handle_img but i couldnt get it to work any other way - trying to do it in with same method made all dm images show up in the main channel for recipients which was v bad.   
     def handle_dm_img(self, msg, addr):
         client_info = self.state.clients.get(addr)

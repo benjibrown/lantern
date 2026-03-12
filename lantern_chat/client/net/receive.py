@@ -449,7 +449,7 @@ class ReceiveMixin:
                             with self.state.lock:
                                 self.state.messages.append(Message(text=display, is_self=is_self, ts=time.time(), msg_id=msg_id))
                                 self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
-                                self.state.disp_index[msg_id] = ("channel", len(self.state.messages) - 1)
+                                self.state.disp_index[msg_id] = ("channel",)
                         continue
 
                     if msg.startswith("[DISP_EXPIRE]|"):

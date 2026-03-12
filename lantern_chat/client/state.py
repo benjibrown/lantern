@@ -65,8 +65,7 @@ class ClientState:
             self.dm_conversations[other_user].append(Message(text=text, is_self=is_self, ts=ts, msg_id=msg_id, img_rows=img_data))
             self.dm_conversations[other_user][:] = self.dm_conversations[other_user][-self.max_messages:]
             if msg_id:
-                idx = len(self.dm_conversations[other_user]) - 1
-                self.disp_index[msg_id] = ("dm", other_user, idx)
+                self.disp_index[msg_id] = ("dm", other_user)
 
     def _redact_text(self, existing, redacted):
         # preserve "[sender]: " prefix so the author is still visible after hiding
@@ -81,13 +80,14 @@ class ClientState:
             if loc is None:
                 return
             if loc[0] == "channel":
-                idx = loc[1]
-                if idx < len(self.messages):
-                    msg = self.messages[idx]
-                    self.messages[idx] = Message(text=self._redact_text(msg.text, redacted), is_self=msg.is_self, ts=msg.ts)
+                for i, msg in enumerate(self.messages):
+                    if msg.msg_id == msg_id:
+                        self.messages[i] = Message(text=self._redact_text(msg.text, redacted), is_self=msg.is_self, ts=msg.ts)
+                        break
             elif loc[0] == "dm":
-                conv_key, idx = loc[1], loc[2]
+                conv_key = loc[1]
                 conv = self.dm_conversations.get(conv_key, [])
-                if idx < len(conv):
-                    msg = conv[idx]
-                    conv[idx] = Message(text=self._redact_text(msg.text, redacted), is_self=msg.is_self, ts=msg.ts)
+                for i, msg in enumerate(conv):
+                    if msg.msg_id == msg_id:
+                        conv[i] = Message(text=self._redact_text(msg.text, redacted), is_self=msg.is_self, ts=msg.ts)
+                        break

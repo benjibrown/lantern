@@ -58,7 +58,7 @@ def get_clipboard_image():
         else:
             # Try Wayland first, then X11 - wayland is so much better frfr but understand not everyone uses it yet
             for cmd in (
-                ["wl-paste", "--type", "image/png", "--no-newline"],
+                ["wl-paste", "--type", "image", "--no-newline"],
                 ["xclip", "-selection", "clipboard", "-t", "image/png", "-o"],
             ):
                 result = subprocess.run(cmd, capture_output=True)

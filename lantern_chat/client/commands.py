@@ -145,8 +145,13 @@ class CommandHandler:
             cap = cv2.VideoCapture(0)
 
             if not cap.isOpened():
-                print("Error: Could not access the camera.")
-                return
+                if self.state.current_view == "dm" and self.state.dm_target:
+                    self.state.append_dm(self.state.dm_target, "[system] Could not access webcam", True)
+                else:
+                    self.state.messages.append(Message(text="[system] Could not access webcam", is_self=True, ts=0))
+                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
+                return True
+                
             
             for _ in range(5):
                 cap.read()

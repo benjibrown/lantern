@@ -1,7 +1,283 @@
 import sys
 import threading
-import cv2
+from dataclasses import dataclass
 from lantern_chat.client.state import Message
+
+try:
+    import cv2 as _cv2
+    _CV2_AVAILABLE = True
+except ImportError:
+    _cv2 = None
+    _CV2_AVAILABLE = False
+
+
+@dataclass
+class CommandContext:
+    config: object
+    state: object
+    network: object
+    ui: object
+    stdscr: object
+
+
+def notify(ctx: CommandContext, text):
+    # system notice in current view
+    with ctx.state.lock:
+        if ctx.state.current_view == "dm" and ctx.state.dm_target:
+            ctx.state.append_dm(ctx.state.dm_target, text, True)
+        else:
+            ctx.state.messages.append(Message(text=text, is_self=True, ts=0))
+            ctx.state.messages[:] = ctx.state.messages[-ctx.config.MAX_MESSAGES:]
+
+
+class CommandRegistry:
+    def __init__(self):
+        # ordered list of (trigger, is_prefix, handler, description)
+        self._commands = []
+
+    def register(self, trigger, description, prefix: bool = False):
+        # decorator to register a cmd handler
+        def decorator(fn):
+            self._commands.append((trigger, prefix, fn, description))
+            return fn
+        return decorator
+
+    def dispatch(self, msg, ctx: CommandContext):
+        for trigger, is_prefix, fn, _ in self._commands:
+            if is_prefix:
+                if msg.startswith(trigger):
+                    return fn(ctx, msg[len(trigger):].strip())
+            else:
+                if msg == trigger:
+                    return fn(ctx, "")
+        return False
+
+    def all_commands(self):
+        # returns list for autocomplete
+        return [(trigger, desc) for trigger, _, _, desc in self._commands]
+
+
+registry = CommandRegistry()
+register = registry.register
+
+
+# gen cmds 
+
+@register("/exit", "Exit the chat")
+def cmd_exit(ctx, _):
+    if ctx.ui.confirm_exit(ctx.stdscr):
+        ctx.state.running = False
+        ctx.network.send_leave()
+        ctx.network.close()
+        sys.exit(0)
+    return True
+
+
+@register("/logout", "Log out and close")
+def cmd_logout(ctx, _):
+    if ctx.ui.confirm_exit(ctx.stdscr):
+        ctx.config.clear_session()
+        ctx.state.running = False
+        ctx.network.send_leave()
+        ctx.network.close()
+        sys.exit(0)
+    return True
+
+
+@register("/help", "Show help menu")
+def cmd_help(ctx, _):
+    ctx.ui.show_help(ctx.stdscr)
+    return True
+
+
+@register("/clear", "Clear messages from main chat for this session")
+def cmd_clear(ctx, _):
+    with ctx.state.lock:
+        ctx.state.messages.clear()
+    return True
+
+
+@register("/fetch", "Send system info to chat (30s cooldown)")
+def cmd_fetch(ctx, _):
+    ctx.network.request_fetch()
+    return True
+
+
+@register("/dnd", "Toggle do not disturb")
+def cmd_dnd(ctx, _):
+    with ctx.state.lock:
+        ctx.state.dnd = not ctx.state.dnd
+        status = "on (notifications off)" if ctx.state.dnd else "off (notifications on)"
+    ctx.config.save_dnd(ctx.state.dnd)
+    notify(ctx, f"[system] Do not disturb {status}")
+    return True
+
+
+@register("/panel", "List users, pick one to DM")
+def cmd_panel(ctx, _):
+    ctx.ui.show_user_panel(ctx.stdscr)
+    return True
+
+
+@register("/channel", "Switch to channel view")
+def cmd_channel(ctx, _):
+    with ctx.state.lock:
+        ctx.state.current_view = "channel"
+        ctx.state.dm_target = None
+    return True
+
+
+@register("/back", "Return to main channel")
+def cmd_back(ctx, _):
+    return cmd_channel(ctx, _)
+
+
+@register("/img", "Send an image (file picker)")
+def cmd_img(ctx, _):
+    path = ctx.ui.show_file_picker(ctx.stdscr)
+    if path:
+        with ctx.state.lock:
+            dm_target = ctx.state.dm_target if ctx.state.current_view == "dm" else None
+        threading.Thread(target=ctx.network.send_img, args=(path, dm_target), daemon=True).start()
+    return True
+
+# i kinda rewrote all of ur cmd dennis, hope u dont mind :P 
+# appreciate the pr tho but added some error handling - aswell as for the import of cv2 (look up)
+@register("/snap", "Send a webcam snapshot")
+def cmd_snap(ctx, _):
+    if not _CV2_AVAILABLE:
+        notify(ctx, "[system] /snap requires opencv-python (pip install opencv-python)")
+        return True
+    with ctx.state.lock:
+        dm_target = ctx.state.dm_target if ctx.state.current_view == "dm" else None
+
+    def _capture_and_send():
+        cap = _cv2.VideoCapture(0)
+        if not cap.isOpened():
+            notify(ctx, "[system] Could not access webcam")
+            return
+        try:
+            # discard early frames so auto-exposure settles
+            for _ in range(5):
+                cap.read()
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                notify(ctx, "[system] Could not capture frame from webcam")
+                return
+            success, encoded = _cv2.imencode('.png', frame)
+            if not success or encoded is None:
+                notify(ctx, "[system] Could not encode webcam frame")
+                return
+            ctx.network.send_img_bytes(encoded.tobytes(), "snap.png", dm_target)
+        except Exception as exc:
+            notify(ctx, f"[system] Snap failed: {exc}")
+        finally:
+            cap.release()
+
+    threading.Thread(target=_capture_and_send, daemon=True).start()
+    return True
+
+
+
+
+@register("/dm ", "Open DM with a user", prefix=True)
+def cmd_dm(ctx, target):
+    if not target:
+        return True
+    if target == ctx.config.USERNAME:
+        notify(ctx, "[system] Cannot DM yourself")
+        return True
+    ctx.state.pending_dm_history = target
+    ctx.network.request_dm_history(target)
+    return True
+
+
+
+
+@register("/stats", "Show user statistics", prefix=True)
+def cmd_stats(ctx, args):
+    target = args.strip() or ctx.config.USERNAME
+    ctx.network.request_user_stats(target)
+    notify(ctx, f"[system] Requesting stats for '{target}'...")
+    return True
+
+
+
+@register("/disp ", "Send a disappearing message: /disp <secs> <msg>", prefix=True)
+def cmd_disp(ctx, args):
+    with ctx.state.lock:
+        in_dm = ctx.state.current_view == "dm" and bool(ctx.state.dm_target)
+    if in_dm:
+        notify(ctx, "[system] /disp is not supported in DMs")
+        return True
+    parts = args.split(None, 1)
+    if len(parts) < 2 or not parts[0].isdigit():
+        notify(ctx, "[system] Usage: /disp <seconds> <message>")
+        return True
+    ctx.network.send_disp(int(parts[0]), parts[1])
+    return True
+
+
+# admin cmds
+
+@register("/mute ", "Mute a user (admin)", prefix=True)
+def cmd_mute(ctx, args):
+    if not args:
+        notify(ctx, "[system] Usage: /mute <user>")
+        return True
+    ctx.network.send_admin_command("mute", args)
+    return True
+
+
+@register("/unmute ", "Unmute a user (admin)", prefix=True)
+def cmd_unmute(ctx, args):
+    if not args:
+        notify(ctx, "[system] Usage: /unmute <user>")
+        return True
+    ctx.network.send_admin_command("unmute", args)
+    return True
+
+
+@register("/ban ", "Ban a user (admin)", prefix=True)
+def cmd_ban(ctx, args):
+    if not args:
+        notify(ctx, "[system] Usage: /ban <user>")
+        return True
+    reason = ctx.ui.prompt_ban_reason(ctx.stdscr, args)
+    if reason is None:
+        return True
+    ctx.network.send_admin_command("ban", f"{args}|{reason}")
+    return True
+
+
+@register("/unban ", "Unban a user (admin)", prefix=True)
+def cmd_unban(ctx, args):
+    if not args:
+        notify(ctx, "[system] Usage: /unban <user>")
+        return True
+    ctx.network.send_admin_command("unban", args)
+    return True
+
+@register("/rename ", "Change a username (admin): /rename <old> <new>", prefix=True)
+def cmd_rename(ctx, args):
+    parts = args.split()
+    if len(parts) != 2:
+        notify(ctx, "[system] Usage: /rename <old_username> <new_username>")
+        return True
+    ctx.network.send_admin_command("rename", f"{parts[0]}|{parts[1]}")
+    return True
+
+# TODO - add server side stuff for this and make it work
+@register("/purge ", "Purge last N messages from chat (admin)", prefix=True)
+def cmd_purge(ctx, args):
+    if not args.strip().isdigit() or int(args.strip()) <= 0:
+        notify(ctx, "[system] Usage: /purge <number>")
+        return True
+    ctx.network.send_admin_command("purge", args.strip())
+    return True
+
+
+
 
 
 class CommandHandler:
@@ -11,191 +287,21 @@ class CommandHandler:
         self.network = network
         self.ui = ui
 
-    def handle_command(self, msg, stdscr):
-        if msg == "/exit":
-            if self.ui.confirm_exit(stdscr):
-                self.shutdown()
-            return True
-
-        if msg == "/clear":
-            with self.state.lock:
-                self.state.messages.clear()
-            return True
-
-        if msg == "/logout":
-            if self.ui.confirm_exit(stdscr):
-                self.config.clear_session()
-                self.state.running = False
-                self.network.send_leave()
-                self.network.close()
-                sys.exit(0)
-            return True
-
-        if msg == "/help":
-            self.ui.show_help(stdscr)
-            return True
-
-        if msg == "/fetch":
-            self.network.request_fetch()
-            return True
-
-        if msg == "/channel" or msg == "/back":
-            with self.state.lock:
-                self.state.current_view = "channel"
-                self.state.dm_target = None
-            return True
-        if msg.startswith("/dm "):
-            target = msg[4:].strip()
-            
-            if not target:
-                return True
-
-            if target == self.config.USERNAME:
-                with self.state.lock:
-                    if self.state.current_view == "dm" and self.state.dm_target:
-                        self.state.append_dm(self.state.dm_target, "[system] cannot DM yourself", True)
-                    else:
-                        self.state.messages.append(Message(text="[system] cannot DM yourself", is_self=True, ts=0))
-                return True
-            self.state.pending_dm_history = target
-            self.network.request_dm_history(target)
-            return True
-
-        if msg == "/panel":
-            self.ui.show_user_panel(stdscr)
-            return True
-
-        if msg == "/dnd":
-            with self.state.lock:
-                self.state.dnd = not self.state.dnd
-                status = "on (notifications off)" if self.state.dnd else "off (notifications on)"
-                if self.state.current_view == "dm" and self.state.dm_target:
-                    self.state.append_dm(self.state.dm_target, f"[system] Do not disturb {status}", True)
-                else:
-                    self.state.messages.append(Message(text=f"[system] Do not disturb {status}", is_self=True, ts=0))
-                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
-            return True
-        if msg.startswith("/stats"):
-            parts = msg.split(maxsplit=1)
-            target = parts[1].strip() if len(parts) > 1 else self.config.USERNAME
-            self.network.request_user_stats(target)
-
-            # let the user know we're requesting stats; the actual stats
-            # will be displayed when the server responds.
-            with self.state.lock:
-                notice = f"[system] Requesting stats for '{target}'..."
-                if self.state.current_view == "dm" and self.state.dm_target:
-                    self.state.append_dm(self.state.dm_target, notice, True)
-                else:
-                    self.state.messages.append(Message(text=notice, is_self=True, ts=0))
-                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
-            return True
-
-        #admin / moderation commands - handled in one block as all req token 
-        if msg.startswith("/mute ") or msg.startswith("/unmute ") or msg.startswith("/ban ") or msg.startswith("/unban "):
-            parts = msg.split(maxsplit=1)
-            if len(parts) != 2 or not parts[1].strip():
-                with self.state.lock:
-                    if self.state.current_view == "dm" and self.state.dm_target:
-                        self.state.append_dm(self.state.dm_target, "[system] Usage: /mute <user>, /unmute <user>, /ban <user>, /unban <user>", True)
-                    else:
-                        self.state.messages.append(
-                        Message(text="[system] Usage: /mute <user>, /unmute <user>, /ban <user>, /unban <user>", is_self=True, ts=0)
-                    )
-                        self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
-                return True
-            target = parts[1].strip()
-            cmd = parts[0][1:]  # strip leading '/'
-
-            payload = target 
-            if cmd == "ban":
-                reason = self.ui.prompt_ban_reason(stdscr, target)
-                if reason is None:  # User cancelled the ban
-                    return True 
-                payload = f"{target}|{reason}"
-
-            self.network.send_admin_command(cmd, payload)
-            return True
-
-        if msg.startswith("/rename"):
-            parts = msg.split()
-            if len(parts) != 3:
-                with self.state.lock:
-                    if self.state.current_view == "dm" and self.state.dm_target:
-                        self.state.append_dm(self.state.dm_target, "[system] Usage: /rename <old_username> <new_username>", True)
-                    else:
-                        self.state.messages.append(
-                        Message(text="[system] Usage: /rename <old_username> <new_username>", is_self=True, ts=0)
-                    )
-                        self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
-                return True
-            _, old_name, new_name = parts
-            payload = f"{old_name}|{new_name}"
-            self.network.send_admin_command("rename", payload)
-            return True
-        # img cmd handling - might make keybind
-        if msg == "/img":
-            path = self.ui.show_file_picker(stdscr)
-            if path:
-                with self.state.lock:
-                    dm_target = self.state.dm_target if self.state.current_view == "dm" else None
-                threading.Thread(target=self.network.send_img, args=(path, dm_target), daemon=True).start()
-            return True
-        if msg == "/snap":
-            cap = cv2.VideoCapture(0)
-
-            if not cap.isOpened():
-                if self.state.current_view == "dm" and self.state.dm_target:
-                    self.state.append_dm(self.state.dm_target, "[system] Could not access webcam", True)
-                else:
-                    self.state.messages.append(Message(text="[system] Could not access webcam", is_self=True, ts=0))
-                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
-                return True
-                
-            
-            for _ in range(5):
-                cap.read()
-
-            ret, frame = cap.read()
-            if ret:
-                success, encoded_image = cv2.imencode('.png', frame)
-
-                if success:
-                    # 3. Convert to bytes to match your program's subprocess output
-                    image = encoded_image.tobytes()
-                img_data, img_name =  image,"snap.png" 
-                if img_data:
-                    with self.state.lock:
-                        dm_target_now = self.state.dm_target if self.state.current_view == "dm" else None
-                    threading.Thread(
-                        target=self.network.send_img_bytes,
-                        args=(img_data, img_name, dm_target_now),
-                        daemon=True,
-                    ).start()
-                    return True
-            
-        if msg.startswith("/disp "):
-            with self.state.lock:
-                in_dm = self.state.current_view == "dm" and bool(self.state.dm_target)
-                dm_target = self.state.dm_target
-            if in_dm:
-                self.state.append_dm(dm_target, "[system] /disp is not supported in DMs", True)
-                return True
-            parts = msg.split(None, 2)
-            if len(parts) < 3 or not parts[1].isdigit():
-                with self.state.lock:
-                    self.state.messages.append(Message(text="[system] Usage: /disp <seconds> <message>", is_self=True, ts=0))
-                    self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
-                return True
-            seconds, text = int(parts[1]), parts[2]
-            self.network.send_disp(seconds, text)
-            return True
-
-        return False
+    def handle_command(self, msg: str, stdscr) -> bool:
+        ctx = CommandContext(self.config, self.state, self.network, self.ui, stdscr)
+        return registry.dispatch(msg, ctx)
 
     def shutdown(self):
         self.state.running = False
         self.network.send_leave()
         self.network.close()
         sys.exit(0)
+
+
+
+
+
+
+
+
 

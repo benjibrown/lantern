@@ -1,6 +1,6 @@
 import sys
 import threading
-
+import cv2
 from lantern_chat.client.state import Message
 
 
@@ -141,7 +141,34 @@ class CommandHandler:
                     dm_target = self.state.dm_target if self.state.current_view == "dm" else None
                 threading.Thread(target=self.network.send_img, args=(path, dm_target), daemon=True).start()
             return True
+        if msg == "/snap":
+            cap = cv2.VideoCapture(0)
 
+            if not cap.isOpened():
+                print("Error: Could not access the camera.")
+                return
+            
+            for _ in range(5):
+                cap.read()
+
+            ret, frame = cap.read()
+            if ret:
+                success, encoded_image = cv2.imencode('.png', frame)
+
+                if success:
+                    # 3. Convert to bytes to match your program's subprocess output
+                    image = encoded_image.tobytes()
+                img_data, img_name =  image,"snap.png" 
+                if img_data:
+                    with self.state.lock:
+                        dm_target_now = self.state.dm_target if self.state.current_view == "dm" else None
+                    threading.Thread(
+                        target=self.network.send_img_bytes,
+                        args=(img_data, img_name, dm_target_now),
+                        daemon=True,
+                    ).start()
+                    return True
+            
         if msg.startswith("/disp "):
             with self.state.lock:
                 in_dm = self.state.current_view == "dm" and bool(self.state.dm_target)

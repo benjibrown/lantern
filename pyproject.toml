@@ -9,10 +9,11 @@ description = "A lightweight TUI chat application for your terminal"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "Benji Brown", email = "benjnib09@gmail.com"}
+    { name = "Benji Brown", email = "benjnib09@gmail.com"},
+    { name = "Dennis Upton", email = "dennisjupton@gmail.com"}
 ]
 requires-python = ">=3.8"
-dependencies = ["rich", "Pillow"]
+dependencies = ["rich", "Pillow","opencv-python"]
 
 [project.urls]
 Homepage = "https://github.com/benjibrown/lantern"

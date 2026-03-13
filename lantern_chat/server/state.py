@@ -12,8 +12,9 @@ os.makedirs(_CONFIG_DIR, exist_ok=True)
 HISTORY_FILE = os.path.join(_DATA_DIR, "messages.json")
 USERS_FILE = os.path.join(_DATA_DIR, "users.json")
 CONFIG_FILE = os.path.join(_CONFIG_DIR, "server.json")
-MAX_CHANNEL_MESSAGES = 2000
-MAX_DM_MESSAGES_PER_CONV = 5000
+_CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "lantern")
+os.makedirs(_CONFIG_DIR, exist_ok=True)
+CONFIG_FILE = os.path.join(_CONFIG_DIR, "server.json")
 
 
 def _hash_password(password: str, salt: str) -> str:
@@ -33,20 +34,21 @@ class ServerState:
         self._dm_key = lambda a, b: tuple(sorted([a, b]))
 
         self.admins = self._load_admins()  # set of usernames
-        self.fetch_cooldown = self._load_fetch_cooldown()
-        self.msg_rate_limit = self._load_msg_rate_limit()  # min seconds between messages per user
+        
+        # load config values
+        self.fetch_cooldown = self._load_config_int("fetch_cooldown", 30)
+        self.msg_rate_limit = self._load_config_float("msg_rate_limit", 1.0)
+        self.max_msg_len = self._load_config_int("max_msg_len", 400)
+        self.max_channel_messages = self._load_config_int("max_channel_messages", 2000)
+        self.max_dm_messages = self._load_config_int("max_dm_messages", 5000)
+        self.login_rate_limit_attempts = self._load_config_int("login_rate_limit_attempts", 5)
+        self.login_rate_limit_window = self._load_config_int("login_rate_limit_window", 300)
+        self.login_rate_limit_lockout = self._load_config_int("login_rate_limit_lockout", 900)
 
         self.fetch_last = {}
-        self._save_lock = threading.Lock()
-        # TODO - move to config file 
-        # login rate limiting: ip -- [{"timestamp": float, "count": int}]
         self.failed_logins = {}
-        self.login_rate_limit_attempts = 5  # max attempts
-        self.login_rate_limit_window = 300  # 5 minutes
-        self.login_rate_limit_lockout = 300  # 5 minutes
+        self._save_lock = threading.Lock()
         
-        # DEFAULT CONFIG
-        self.MAX_MSG_LEN = 400 # shared with client during runtime, TODO - put in config file 
 
     def _load_users(self):
         if os.path.exists(USERS_FILE):
@@ -62,7 +64,8 @@ class ServerState:
             try:
                 with open(HISTORY_FILE, "r") as f:
                     data = json.load(f)
-                    return data.get("channel", [])[-MAX_CHANNEL_MESSAGES:]
+                    # use a large sentinel since max_channel_messages isn't loaded yet
+                    return data.get("channel", [])[-99999:]
             except Exception:
                 pass
         return []
@@ -89,6 +92,26 @@ class ServerState:
                 pass
         return set()
        
+    def _load_config_int(self, key, default):
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r") as f:
+                    data = json.load(f)
+                    return int(data.get(key, default))
+            except Exception:
+                pass
+        return default
+
+    def _load_config_float(self, key, default):
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r") as f:
+                    data = json.load(f)
+                    return float(data.get(key, default))
+            except Exception:
+                pass
+        return default
+
     def _load_fetch_cooldown(self):
         if os.path.exists(CONFIG_FILE):
             try:
@@ -117,7 +140,7 @@ class ServerState:
 
     def save_all(self):
         data = {
-            "channel": self.channel_messages[-MAX_CHANNEL_MESSAGES:],
+            "channel": self.channel_messages[-self.max_channel_messages:],
             "dm": self.dm_conversations,
         }
         with self._save_lock:
@@ -171,7 +194,7 @@ class ServerState:
     def add_channel_message(self, sender: str, text: str):
         msg = {"sender": sender, "text": text, "timestamp": time.time()}
         self.channel_messages.append(msg)
-        self.channel_messages[:] = self.channel_messages[-MAX_CHANNEL_MESSAGES:]
+        self.channel_messages[:] = self.channel_messages[-self.max_channel_messages:]
         self.save_all()
         return msg
 
@@ -194,7 +217,7 @@ class ServerState:
             self.dm_conversations[key] = []
         msg = {"sender": sender, "text": text, "timestamp": time.time()}
         self.dm_conversations[key].append(msg)
-        self.dm_conversations[key] = self.dm_conversations[key][-MAX_DM_MESSAGES_PER_CONV:]
+        self.dm_conversations[key] = self.dm_conversations[key][-self.max_dm_messages:]
         self.save_all() 
         return msg
 

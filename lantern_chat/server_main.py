@@ -8,7 +8,18 @@ from lantern_chat.server.net import NetworkManager
 
 def _load_server_config():
     if not os.path.exists(CONFIG_FILE):
-        default = {"admins": [], "port": 6000, "fetch_cooldown": 30, "msg_rate_limit": 1.0}
+        default = {
+            "admins": [],
+            "port": 6000,
+            "fetch_cooldown": 30,
+            "msg_rate_limit": 1.0,
+            "max_msg_len": 400,
+            "max_channel_messages": 2000,
+            "max_dm_messages": 5000,
+            "login_rate_limit_attempts": 5,
+            "login_rate_limit_window": 300,
+            "login_rate_limit_lockout": 900
+        }
         try:
             with open(CONFIG_FILE, "w") as f:
                 json.dump(default, f, indent=2)

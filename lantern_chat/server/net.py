@@ -14,6 +14,7 @@ from lantern_chat.frame import send_msg, recv_msg
 TIMEOUT = 15
 # set of banned characters - only _ and - are allowed as special characters, no spaces allowed 
 # this is checked server side and client side so users cannot just modify client code to bypass
+# its better to check if a username only contains allow chars rather than bad chars since there is way more banned chars than this yet only allow any letters, num, _ and - 
 BANNED_CHARS = set(" !\"#$%&'()*+,./:;<=>?@[\\]^`{|}~<>")
 ALLOWED_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
 
@@ -80,7 +81,7 @@ class NetworkManager:
             self.broadcast(msg)
 
     def send_max_message_len(self, addr):
-        self._send(addr, f"[MAX_MSG_LEN]|{self.state.MAX_MSG_LEN}")
+        self._send(addr, f"[MAX_MSG_LEN]|{self.state.max_msg_len}")
 
     def send_user_stats(self, addr, username: str):
         stats = self.state.get_user_stats(username)
@@ -330,6 +331,10 @@ class NetworkManager:
             if not self.state.user_exists(target):
                 self._send(addr, f"[ADMIN_ERROR]|User '{target}' not found")
                 return
+            if target == actor:
+                self._send(addr, f"[ADMIN_ERROR]|You cannot {command} yourself")
+                return
+
 
             if command == "mute":
                 self.state.set_muted(target, True)

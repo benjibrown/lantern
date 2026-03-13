@@ -275,9 +275,50 @@ def cmd_purge(ctx, args):
         return True
     ctx.network.send_admin_command("purge", args.strip())
     return True
+# useless ahh cmd
+''' 
+# /snap command but with multiple shots 
+@register("/snapburst ", "Send multiple webcam snapshots: /snapburst <count>", prefix=True)
+def cmd_snapburst(ctx, args):
+    if not _CV2_AVAILABLE:
+        notify(ctx, "[system] /snapburst requires opencv-python (pip install opencv-python)")
+        return True
+    if not args.strip().isdigit() or int(args.strip()) <= 0:
+        notify(ctx, "[system] Usage: /snapburst <count>")
+        return True
+    count = int(args.strip())
+    with ctx.state.lock:
+        dm_target = ctx.state.dm_target if ctx.state.current_view == "dm" else None
 
+    def _capture_and_send_burst():
+        cap = _cv2.VideoCapture(0)
+        if not cap.isOpened():
+            notify(ctx, "[system] Could not access webcam")
+            return
+        try:
+            for i in range(count):
+                # discard early frames so auto-exposure settles
+                for _ in range(5):
+                    cap.read()
+                ret, frame = cap.read()
+                if not ret or frame is None:
+                    notify(ctx, f"[system] Could not capture frame {i+1} from webcam")
+                    continue
+                success, encoded = _cv2.imencode('.png', frame)
+                if not success or encoded is None:
+                    notify(ctx, f"[system] Could not encode webcam frame {i+1}")
+                    continue
+                ctx.network.send_img_bytes(encoded.tobytes(), f"snapburst_{i+1}.png", dm_target)
+                
+        except Exception as exc:
+            notify(ctx, f"[system] Snap burst failed: {exc}")
+        finally:
+            cap.release()
 
+    threading.Thread(target=_capture_and_send_burst, daemon=True).start()
+    return True
 
+'''
 
 
 class CommandHandler:

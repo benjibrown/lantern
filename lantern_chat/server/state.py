@@ -38,6 +38,13 @@ class ServerState:
 
         self.fetch_last = {}
         self._save_lock = threading.Lock()
+        # TODO - move to config file 
+        # login rate limiting: ip -- [{"timestamp": float, "count": int}]
+        self.failed_logins = {}
+        self.login_rate_limit_attempts = 5  # max attempts
+        self.login_rate_limit_window = 300  # 5 minutes
+        self.login_rate_limit_lockout = 300  # 5 minutes
+        
         # DEFAULT CONFIG
         self.MAX_MSG_LEN = 400 # shared with client during runtime, TODO - put in config file 
 
@@ -333,5 +340,50 @@ class ServerState:
                 "total_channel_messages": sum(1 for msg in self.channel_messages if msg["sender"] == username),
             }
         # if hasnt met any of these if statements then return None 
-        return None 
+        return None
+    # camel case better ??
+    def isLoginRateLimited(self, ip):
+        # check if ip is ratelimited
+        now = time.time()
+        if ip not in self.failed_logins:
+            return False
+        record = self.failed_logins[ip]
+        # remove old attempts outside the window
+        self.failed_logins[ip] = [
+            r for r in record
+            if now - r["timestamp"] <= self.login_rate_limit_window
+        ]
+        # if still have 5+ recent failures, we're locked out for the lockout period
+        if len(self.failed_logins[ip]) >= self.login_rate_limit_attempts:
+            first_attempt = self.failed_logins[ip][0]["timestamp"]
+            if now - first_attempt <= self.login_rate_limit_lockout:
+                return True
+        # no record or lockout expired
+        if not self.failed_logins[ip]:
+            del self.failed_logins[ip]
+        return False
+
+    def recordFailedLogin(self, ip):
+        # record a failed login 
+        now = time.time()
+        if ip not in self.failed_logins:
+            self.failed_logins[ip] = []
+        # remove old attempts outside the window
+        self.failed_logins[ip] = [
+            r for r in self.failed_logins[ip]
+            if now - r["timestamp"] <= self.login_rate_limit_window
+        ]
+        # add this attempt
+        self.failed_logins[ip].append({"timestamp": now, "count": len(self.failed_logins[ip]) + 1})
+        # if we've hit the limit, return seconds until unlock
+        if len(self.failed_logins[ip]) >= self.login_rate_limit_attempts:
+            first_attempt = self.failed_logins[ip][0]["timestamp"]
+            unlock_time = first_attempt + self.login_rate_limit_lockout
+            return max(1, int(unlock_time - now))
+        return 0
+
+    def clearLoginAttempts(self, ip):
+        # clear attempts for an ip if login success
+        if ip in self.failed_logins:
+            del self.failed_logins[ip] 
 

@@ -15,6 +15,7 @@ TIMEOUT = 15
 # set of banned characters - only _ and - are allowed as special characters, no spaces allowed 
 # this is checked server side and client side so users cannot just modify client code to bypass
 BANNED_CHARS = set(" !\"#$%&'()*+,./:;<=>?@[\\]^`{|}~<>")
+ALLOWED_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
 
 
 class NetworkManager:
@@ -122,10 +123,16 @@ class NetworkManager:
         if any(c in BANNED_CHARS for c in username):
             self._send_conn(conn, "[REGISTER_FAIL]|Username contains illegal characters")
             return
+        if username.lower() == "you":
+            self._send_conn(conn, "[REGISTER_FAIL]|Username 'you' is not allowed")
+            return
         if len(username) > 16:
             self._send_conn(conn, "[REGISTER_FAIL]|Username too long (max 16 characters)")
             return
-
+        # TODO - update
+        #if any(c not in ALLOWED_CHARS for c in username):
+        #    self._send_conn(conn, "[REGISTER_FAIL]|Username contains illegal characters")
+        #    return
         if self.state.register_user(username, password):
             self._send_conn(conn, "[REGISTER_OK]")
             print(f"[green][+][/green] New user registered: {username}")
@@ -137,6 +144,12 @@ class NetworkManager:
         if len(parts) < 3:
             self._send_conn(conn, "[AUTH_FAIL]|Invalid format")
             return
+        
+        # check rate limit first
+        if self.state.isLoginRateLimited(addr[0]):
+            self._send_conn(conn, "[AUTH_FAIL]|Too many failed login attempts. Try again later.") # no bruteforce pls
+            return
+        
         _, username, password = parts
         username = username.strip()
         if not username:
@@ -148,8 +161,17 @@ class NetworkManager:
             self._send_conn(conn, f"[AUTH_FAIL]|{out}")
             return
         if not self.state.validate_user(username, password):
-            self._send_conn(conn, "[AUTH_FAIL]|Bad username or password")
+            lockout_secs = self.state.recordFailedLogin(addr[0])
+            lockout_mins = lockout_secs // 60
+            if lockout_secs > 0:
+                self._send_conn(conn, f"[AUTH_FAIL]|Bad username or password (account locked for {lockout_mins}mins)")
+            else:
+                self._send_conn(conn, "[AUTH_FAIL]|Bad username or password")
             return
+        
+        # successful login — clear rate limit
+        self.state.clearLoginAttempts(addr[0])
+        
         # i love tokens 
         token = self.state.create_session(username)
         self.state.set_pending_auth(addr, username)

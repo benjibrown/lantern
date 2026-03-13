@@ -8,6 +8,7 @@ import os
 import threading
 
 from lantern_chat.client.state import Message
+from lantern_chat.client.commands import registry as command_registry
 
 # ------ UI class ------
 # next time im not using curses lmao - textual??? it seems better but idk 
@@ -66,27 +67,10 @@ def show_ban_screen(stdscr, reason):
 
 class UI:
 
-    # command definitions for autocomplete 
-    COMMANDS = [
-        ("/exit", "Exit the chat"),
-        ("/logout", "Log out and close"),
-        ("/back", "Return to main channel"),
-        ("/dm ", "Open DM with user"),
-        ("/panel", "List users to DM"),
-        ("/fetch", "Send system info (30s cooldown)"),
-        ("/dnd", "Toggle do not disturb"),
-        ("/stats", "Show user statistics"),
-        ("/img", "Send an image (file picker)"),
-        ("/disp <secs> <msg>", "Send a disappearing message"),
-        ("/clear ", "Clear messages from main chat for session"),
-        ("/mute ", "Mute a user (admin)"),
-        ("/unmute ", "Unmute a user (admin)"),
-        ("/ban ", "Ban a user (admin)"),
-        ("/unban ", "Unban a user (admin)"),
-        ("/rename ", "Change username (admin)"),
-        ("/channel", "Switch to channel view"),
-        ("/help", "Show help menu"),
-    ]
+    # command definitions for autocomplete — sourced from the command registry
+    @property
+    def COMMANDS(self):
+        return command_registry.all_commands()
 
     def __init__(self, config, state, network, command_handler):
         self.config = config

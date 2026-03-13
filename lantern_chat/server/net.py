@@ -29,6 +29,7 @@ class NetworkManager:
         self.sock.bind((host, port))
         self.sock.listen(50)
 
+
     def _send(self, addr, msg: str):
         # send to a specific connected client by addr key
         client = self.state.clients.get(addr)

@@ -112,6 +112,13 @@ class UI:
         self._img_color_cache[key] = slot
         return slot
 
+    def _persist_last_view(self, view, dm_target):
+        if view == "dm" and dm_target:
+            self.config.save_last_view("dm")
+            self.config.save_last_dm(dm_target)
+        else:
+            self.config.save_last_view("channel")
+
     def get_autocomp_matches(self, text: str):
         if not text.startswith("/"):
             return []
@@ -674,8 +681,8 @@ class UI:
         stdscr.keypad(True)
         curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
         self.input_buf = ""
-        self.network.request_user_list()
         self.input_cursor = 0
+        self.network.request_user_list()
         self.network.request_max_msg_len()
 
         while self.state.running:
@@ -694,6 +701,7 @@ class UI:
                     chat_snapshot = list(self.state.messages)
                 user_snapshot = sorted(self.state.users)
                 unread_snapshot = dict(self.state.unread_dms)
+            self._persist_last_view(view, dm_target)
 
             lines = []
             for entry in chat_snapshot:

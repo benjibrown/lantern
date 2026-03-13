@@ -23,6 +23,7 @@ def main():
         curses.wrapper(auth_wrapper)
 
     state = ClientState(config.USERNAME)
+    state.dnd = config.load_dnd()
     network = NetworkManager(config, state)
     ui = UI(config, state, network, None)
     command_handler = CommandHandler(config, state, network, ui)
@@ -45,6 +46,12 @@ def main():
         sys.exit(1)
 
     config.save_session(config.USERNAME, config.PASSWORD)
+
+    last_view = config.load_last_view()
+    last_dm = config.load_last_dm()
+    if last_view == "dm" and last_dm and last_dm != config.USERNAME:
+        state.pending_dm_history = last_dm
+        network.request_dm_history(last_dm)
 
     try:
         curses.wrapper(ui.run)

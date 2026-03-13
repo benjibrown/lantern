@@ -94,3 +94,36 @@ class Config:
             pass
 
 
+
+
+    def load_dnd(self):
+        data = self._load_config()
+        return bool(data.get("dnd", True))
+
+    def save_dnd(self, enabled):
+        data = self._load_config()
+        data["dnd"] = bool(enabled)
+        self._save_config(data)
+
+    def load_last_view(self):
+        data = self._load_config()
+        view = data.get("last_view")
+        return view if view in ("channel", "dm") else "channel"
+
+    def save_last_view(self, view):
+        data = self._load_config()
+        data["last_view"] = "dm" if view == "dm" else "channel"
+        self._save_config(data)
+
+    def load_last_dm(self):
+        data = self._load_config()
+        value = data.get("last_dm")
+        return value if isinstance(value, str) and value.strip() else None
+
+    def save_last_dm(self, username):
+        data = self._load_config()
+        if username:
+            data["last_dm"] = str(username).strip()
+        else:
+            data.pop("last_dm", None)
+        self._save_config(data)

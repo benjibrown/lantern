@@ -168,10 +168,17 @@ class ServerState:
         self.save_all()
         return msg
 
+    def purge_channel_messages(self, count: int):
+        # purge last n messages from chat - only main channel
+        removed = min(count, len(self.channel_messages))
+        self.channel_messages = self.channel_messages[:-removed] if removed else self.channel_messages
+        self.save_all()
+        return removed
+
     def get_channel_history(self, limit=500):
         return self.channel_messages[-limit:]
 
-    def _dm_key_str(self, u1: str, u2: str) -> str:
+    def _dm_key_str(self, u1: str, u2: str):
         return ",".join(sorted([u1, u2]))
 
     def add_dm(self, sender: str, recipient: str, text: str):
@@ -189,7 +196,7 @@ class ServerState:
         msgs = self.dm_conversations.get(key, [])
         return msgs[-limit:]
 
-    def get_last_dm_time_for_user(self, username: str) -> dict:
+    def get_last_dm_time_for_user(self, username: str): # chat is this peak
 
         out = {}
         for key, msgs in self.dm_conversations.items():
@@ -207,7 +214,7 @@ class ServerState:
     def pop_pending_auth(self, addr):
         return self.pending_auth.pop(addr, None)
 
-    def create_session(self, username: str) -> str:
+    def create_session(self, username: str):
         token = secrets.token_hex(32)
         self.sessions[username] = token
         return token
@@ -218,10 +225,10 @@ class ServerState:
     def clear_session(self, username: str):
         self.sessions.pop(username, None)
 
-    def is_admin(self, username: str) -> bool:
+    def is_admin(self, username: str):
         return username in self.admins
 
-    def is_banned(self, username: str) -> bool:
+    def is_banned(self, username: str):
         entry = self.users.get(username)
         if isinstance(entry, dict):
             return bool(entry.get("banned"))
@@ -238,7 +245,7 @@ class ServerState:
         return None
 
 
-    def is_muted(self, username: str) -> bool:
+    def is_muted(self, username: str):
         entry = self.users.get(username)
         if isinstance(entry, dict):
             return bool(entry.get("muted"))
@@ -276,7 +283,7 @@ class ServerState:
             entry["muted"] = muted
         self.save_all()
 
-    def rename_user(self, old_username: str, new_username: str) -> bool:
+    def rename_user(self, old_username: str, new_username: str):
         # if a user is renamed in dms then you must reopen dms for msgs to send 
         old_username = (old_username or "").strip()
         new_username = (new_username or "").strip()
@@ -312,7 +319,7 @@ class ServerState:
         self.save_all()
         return True
     
-    def get_user_stats(self, username: str) -> dict:
+    def get_user_stats(self, username: str):
         # return dict with stats for a given user (not necessarily one requesting) - send their username, admin or not, banned?, muted?, total number of channel messages sent 
         entry = self.users.get(username)
         if entry is None:

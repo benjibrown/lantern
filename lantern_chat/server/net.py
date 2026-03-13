@@ -1,3 +1,5 @@
+# TODO - refactor cmd system like i did in client for server
+
 import json 
 import socket
 import time
@@ -372,6 +374,22 @@ class NetworkManager:
             self.send_admin_list()
             # refresh user list so panels don't show the old name
             self.send_user_list()
+            return
+        # peak purge command 
+        if command == "purge":
+            try:
+                count = int(rest.strip())
+                if count <= 0:
+                    raise ValueError
+            except (ValueError, AttributeError):
+                self._send(addr, "[ADMIN_ERROR]|Usage: /purge <number>")
+                return
+            removed = self.state.purge_channel_messages(count)
+            self.broadcast(f"[PURGE]|{removed}")
+            info = f"[system] {actor} purged {removed} message(s)"
+            self.state.add_channel_message("system", info)
+            self.broadcast(info)
+            self._send(addr, f"[ADMIN_OK]|Purged {removed} message(s)")
             return
 
         self._send(addr, f"[ADMIN_ERROR]|Unknown admin command '{command}'")

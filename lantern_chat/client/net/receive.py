@@ -368,6 +368,15 @@ class ReceiveMixin:
                             self.state.messages[:] = self.state.messages[-self.config.MAX_MESSAGES:]
                         continue
 
+                    if msg.startswith("[PURGE]|"):
+                        try:
+                            count = int(msg.split("|", 1)[1])
+                        except (ValueError, IndexError):
+                            count = len(self.state.messages)
+                        with self.state.lock:
+                            self.state.messages = self.state.messages[:-count] if count < len(self.state.messages) else []
+                        continue
+
                     if msg.startswith("[ADMIN_ERROR]|"):
                         reason = msg.split("|", 1)[1] if "|" in msg else "Admin error"
                         # route system message

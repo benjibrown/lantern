@@ -47,8 +47,28 @@ class ServerState:
 
         self.fetch_last = {}
         self.failed_logins = {}
+        self.unreadMessages = self._loadUnreadMessages()  # username -> {sender: count}
+        self.usersWithUnread = self._loadUsersWithUnread()  # username -> set(senders)
         self._save_lock = threading.Lock()
         
+
+    def _loadUnreadMessages(self):
+        # load unread message counts from history file
+        if os.path.exists(HISTORY_FILE):
+            try:
+                with open(HISTORY_FILE, "r") as f:
+                    data = json.load(f)
+                    return data.get("unread", {})
+            except Exception:
+                pass
+        return {}
+
+    def _loadUsersWithUnread(self):
+        # build reverse index: username -> {users who sent unread msgs}
+        result = {}
+        for username, unreadMap in self.unreadMessages.items():
+            result[username] = set(k for k, v in unreadMap.items() if v > 0)
+        return result
 
     def _load_users(self):
         if os.path.exists(USERS_FILE):
@@ -142,6 +162,7 @@ class ServerState:
         data = {
             "channel": self.channel_messages[-self.max_channel_messages:],
             "dm": self.dm_conversations,
+            "unread": self.unreadMessages,
         }
         with self._save_lock:
             with open(HISTORY_FILE, "w") as f:
@@ -408,5 +429,38 @@ class ServerState:
     def clearLoginAttempts(self, ip):
         # clear attempts for an ip if login success
         if ip in self.failed_logins:
-            del self.failed_logins[ip] 
+            del self.failed_logins[ip]
+
+    def addUnreadMessage(self, recipient: str, sender: str):
+        # increment unread count for recipient from sender
+        if recipient not in self.unreadMessages:
+            self.unreadMessages[recipient] = {}
+        if sender not in self.unreadMessages[recipient]:
+            self.unreadMessages[recipient][sender] = 0
+        self.unreadMessages[recipient][sender] += 1
+        # update the set of users with unread msgs
+        if recipient not in self.usersWithUnread:
+            self.usersWithUnread[recipient] = set()
+        self.usersWithUnread[recipient].add(sender)
+        self.save_all()
+
+    def clearUnread(self, username: str, sender: str):
+        # mark conversation as read
+        if username in self.unreadMessages and sender in self.unreadMessages[username]:
+            self.unreadMessages[username][sender] = 0
+            # remove from the set
+            if username in self.usersWithUnread:
+                self.usersWithUnread[username].discard(sender)
+            self.save_all()
+
+    def getUnreadCounts(self, username: str):
+        # return unread counts for a user {sender: count}
+        if username not in self.unreadMessages:
+            return {}
+        return {k: v for k, v in self.unreadMessages[username].items() if v > 0}
+
+    def getUsersWithUnread(self, username: str):
+        # return set of users who sent unread messages
+        return self.usersWithUnread.get(username, set())
+
 

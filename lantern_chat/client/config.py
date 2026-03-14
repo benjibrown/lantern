@@ -5,6 +5,7 @@ import os
 _CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "lantern")
 _CONFIG_FILE = os.path.join(_CONFIG_DIR, "config.json")
 _SESSION_FILE = os.path.join(_CONFIG_DIR, "session")
+_STATE_FILE = os.path.join(_CONFIG_DIR, "state.json")
 os.makedirs(_CONFIG_DIR, exist_ok=True)
 
 DEFAULT_PORT = 6000
@@ -93,8 +94,21 @@ class Config:
         except Exception:
             pass
 
+    def _load_state(self):
+        if not os.path.exists(_STATE_FILE):
+            return {}
+        try:
+            with open(_STATE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
 
-
+    def _save_state(self, data: dict):
+        try:
+            with open(_STATE_FILE, "w") as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            pass
 
     def load_dnd(self):
         data = self._load_config()
@@ -106,24 +120,26 @@ class Config:
         self._save_config(data)
 
     def load_last_view(self):
-        data = self._load_config()
+        data = self._load_state()
         view = data.get("last_view")
         return view if view in ("channel", "dm") else "channel"
 
     def save_last_view(self, view):
-        data = self._load_config()
+        data = self._load_state()
         data["last_view"] = "dm" if view == "dm" else "channel"
-        self._save_config(data)
+        self._save_state(data)
 
     def load_last_dm(self):
-        data = self._load_config()
+        data = self._load_state()
         value = data.get("last_dm")
         return value if isinstance(value, str) and value.strip() else None
 
     def save_last_dm(self, username):
-        data = self._load_config()
+        data = self._load_state()
         if username:
             data["last_dm"] = str(username).strip()
         else:
             data.pop("last_dm", None)
-        self._save_config(data)
+        self._save_state(data)
+
+

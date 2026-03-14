@@ -133,6 +133,17 @@ class ReceiveMixin:
                         self.state.auth_failed = True
                     continue
 
+                if msg.startswith("[UNREAD]|"):
+                    parts = msg.split("|", 1)
+                    if len(parts) > 1:
+                        try:
+                            data = json.loads(parts[1])
+                            with self.state.lock:
+                                self.state.unread_dms = data
+                        except Exception:
+                            pass
+                    continue
+
                 if msg.startswith("[CHANNEL_HISTORY]|"):
                     parts = msg.split("|", 2)
                     if len(parts) >= 3:

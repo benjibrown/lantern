@@ -275,6 +275,7 @@ def cmd_purge(ctx, args):
         return True
     ctx.network.send_admin_command("purge", args.strip())
     return True
+
 # useless ahh cmd
 ''' 
 # /snap command but with multiple shots 

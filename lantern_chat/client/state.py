@@ -91,3 +91,7 @@ class ClientState:
                     if msg.msg_id == msg_id:
                         conv[i] = Message(text=self._redact_text(msg.text, redacted), is_self=msg.is_self, ts=msg.ts)
                         break
+
+    def clear_unread(self, other_user):
+        with self.lock:
+            self.unread_dms.pop(other_user, None)

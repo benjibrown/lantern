@@ -108,6 +108,7 @@ class SendMixin:
 
     def request_dm_history(self, other_user: str):
         self._send(f"[REQ_DM_HISTORY]|{other_user}")
+        self._send(f"[CLEAR_UNREAD]|{other_user}")
 
     def request_fetch(self):
         self._send(f"[REQ_FETCH]|{json.dumps(self.system_fetch())}")

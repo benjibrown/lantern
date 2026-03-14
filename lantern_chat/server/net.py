@@ -197,6 +197,12 @@ class NetworkManager:
         self.send_user_list()
         self.send_user_list(addr)
         self.send_admin_list(addr)
+        
+        # send unread message counts
+        unreadCounts = self.state.getUnreadCounts(username)
+        if unreadCounts:
+            self._send(addr, f"[UNREAD]|{json.dumps(unreadCounts)}")
+        
         # send recent channel history so new joiners have some context
         # with TCP this is a single reliable stream so chunking is just for protocol consistency
         history = self.state.get_channel_history()
@@ -275,6 +281,10 @@ class NetworkManager:
         self.state.add_dm(sender, recipient, text)
         ts = int(time.time())
         payload = f"[DM]|{sender}|{ts}|{text}"
+        
+        # always track unread (online or offline)
+        self.state.addUnreadMessage(recipient, sender)
+        
         self.send_to_user(recipient, payload)
         self._send(addr, payload)
 
@@ -291,6 +301,17 @@ class NetworkManager:
             return
         history = self.state.get_dm_history(sender, other)
         self._send(addr, f"[DM_HISTORY]|{other}|{json.dumps(history)}")
+
+    def handle_clear_unread(self, msg, addr):
+        # [CLEAR_UNREAD]|other_user
+        username = self.state.clients.get(addr, {}).get("username")
+        if not username:
+            return
+        parts = msg.split("|", 1)
+        other = parts[1].strip() if len(parts) > 1 else None
+        if not other:
+            return
+        self.state.clearUnread(username, other)
 
     def handle_admin_cmd(self, msg, addr):
         parts = msg.split("|", 4)
@@ -624,6 +645,9 @@ class NetworkManager:
                     continue
                 if msg.startswith("[REQ_DM_HISTORY]|"):
                     self.handle_req_dm_history(msg, addr)
+                    continue
+                if msg.startswith("[CLEAR_UNREAD]|"):
+                    self.handle_clear_unread(msg, addr)
                     continue
                 if msg.startswith("[ADMIN_CMD]|"):
                     self.handle_admin_cmd(msg, addr)

@@ -11,7 +11,7 @@ from lantern_chat.frame import send_msg, recv_msg
 
 # i should add more comments to this code ig
 
-TIMEOUT = 15
+TIMEOUT = 60
 # set of banned characters - only _ and - are allowed as special characters, no spaces allowed 
 # this is checked server side and client side so users cannot just modify client code to bypass
 # its better to check if a username only contains allow chars rather than bad chars since there is way more banned chars than this yet only allow any letters, num, _ and - 

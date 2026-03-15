@@ -60,6 +60,12 @@ In the server config, you can set the server admins, port, message and fetch coo
 
 Lantern requires a server to be running at the configured host and port for clients to be able to connect and communicate. This can either be locally (using default server IP and port in client config) which will allow you to communicate across a LAN or by setting up the server on a public facing IP (eg using a VPS) or by tunnelling a port on your local network to a publicly accessible IP.
 
+## Compatibility 
+- Linux (fully supported, tested on Fedora, Asahi Fedora, Arch)
+- MacOS (supported but not tested in depth)
+- Windows (seems to work but is untested, there are likely to be some issues)
+
+
 ## Contributing
 
 Just make a pull req. lol

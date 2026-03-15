@@ -463,4 +463,17 @@ class ServerState:
         # return set of users who sent unread messages
         return self.usersWithUnread.get(username, set())
 
+    def reload_config(self):
+        # reload all config values from disk - admin only
+        # 2nd value passed is default 
+        self.admins = self._load_admins()
+        self.fetch_cooldown = self._load_config_int("fetch_cooldown", 30) 
+        self.msg_rate_limit = self._load_config_float("msg_rate_limit", 1.0)
+        self.max_msg_len = self._load_config_int("max_msg_len", 400)
+        self.max_channel_messages = self._load_config_int("max_channel_messages", 2000)
+        self.max_dm_messages = self._load_config_int("max_dm_messages", 5000)
+        self.login_rate_limit_attempts = self._load_config_int("login_rate_limit_attempts", 5)
+        self.login_rate_limit_window = self._load_config_int("login_rate_limit_window", 300)
+        self.login_rate_limit_lockout = self._load_config_int("login_rate_limit_lockout", 900)
+
 

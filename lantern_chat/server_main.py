@@ -3,8 +3,15 @@ import json
 import os
 
 from lantern_chat.server.state import ServerState, HISTORY_FILE, USERS_FILE, CONFIG_FILE
-from lantern_chat.server.net import NetworkManager
+from lantern_chat.server.net import networkManager
 
+def fetch_version():
+    # pull from package metadata if available
+    try:
+        import importlib.metadata
+        return importlib.metadata.version("lantern-chat")
+    except Exception:
+        return "An error occurred while fetching the version. Please ensure the package is installed correctly."
 
 def _load_server_config():
     if not os.path.exists(CONFIG_FILE):
@@ -63,6 +70,7 @@ def main():
     parser = argparse.ArgumentParser(description="Lantern chat server")
     parser.add_argument("--reset-db", action="store_true", help="Clear all stored messages and users")
     parser.add_argument("--port", "-p", type=int, help="Port to listen on (default: 6000)")
+    parser.add_argument("--version", "-v", help="Show version information", action="version", version=fetch_version())
     args = parser.parse_args()
 
     HOST = "0.0.0.0"
@@ -77,5 +85,5 @@ def main():
         clear_db()
 
     state = ServerState()
-    network = NetworkManager(HOST, PORT, state)
+    network = networkManager(HOST, PORT, state)
     network.run()

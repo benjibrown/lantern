@@ -352,7 +352,6 @@ class HandlerMixin:
             if len(newName) > 16:
                 self.send(addr, "[ADMIN_ERROR]|New username too long (max 16 characters)")
                 return
-
             if any(c in BANNED_CHARS for c in newName):
                 self.send(addr, "[ADMIN_ERROR]|New username contains illegal characters")
                 return
@@ -364,6 +363,9 @@ class HandlerMixin:
                 return
             if not self.state.rename_user(oldName, newName):
                 self.send(addr, "[ADMIN_ERROR]|Failed to rename user (validation or storage error)")
+                return
+            if newName.lower() == "you":
+                self.send(addr, "[ADMIN_ERROR]|Username 'you' is not allowed")
                 return
 
             info = f"[system] {actor} renamed user {oldName} to {newName}"

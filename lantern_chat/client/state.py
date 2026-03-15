@@ -40,6 +40,7 @@ class ClientState:
         self.send_failed = False
         self.last_received_from_server = 0.0
         self.dnd = True
+        self.last_ui_activity = time.time()
 
         self.banned = False 
         self.ban_reason = ""
@@ -95,3 +96,12 @@ class ClientState:
     def clear_unread(self, other_user):
         with self.lock:
             self.unread_dms.pop(other_user, None)
+
+    def update_ui_activity(self):
+        with self.lock:
+            self.last_ui_activity = time.time()
+
+    def is_window_focused(self, idle_threshold_seconds=5):
+        with self.lock:
+            idle_time = time.time() - self.last_ui_activity
+        return idle_time < idle_threshold_seconds

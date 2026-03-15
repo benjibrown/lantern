@@ -849,6 +849,8 @@ class UI:
                 if ch == -1:
                     time.sleep(0.02)
                     continue
+                # update UI activity on any key press
+                self.state.update_ui_activity()
                 # ---- double escape to quit immediately ----
                 if ch == 27:
                     # when autocomplete active, esc closes it if u dont want it to show 

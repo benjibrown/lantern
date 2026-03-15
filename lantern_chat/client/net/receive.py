@@ -285,25 +285,26 @@ class ReceiveMixin:
 
                             if not self.state.dnd:
                                 try:
-                                    safe_user = ''.join(c for c in from_user if c.isalnum() or c in '-_.')
-                                    if platform.system() == "Darwin":
-                                        subprocess.run(
-                                            [
-                                                "osascript",
-                                                "-e",
-                                                f'display notification "DM from {safe_user}" with title "Lantern"',
-                                            ],
-                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                        )
-                                    elif platform.system() == "Linux":
-                                        subprocess.run(
-                                            [
-                                                "notify-send",
-                                                "Lantern",
-                                                f"DM from {safe_user}",
-                                            ],
-                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                        )
+                                    if not self.state.is_window_focused():
+                                        safe_user = ''.join(c for c in from_user if c.isalnum() or c in '-_.')
+                                        if platform.system() == "Darwin":
+                                            subprocess.run(
+                                                [
+                                                    "osascript",
+                                                    "-e",
+                                                    f'display notification "DM from {safe_user}" with title "Lantern"',
+                                                ],
+                                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                            )
+                                        elif platform.system() == "Linux":
+                                            subprocess.run(
+                                                [
+                                                    "notify-send",
+                                                    "Lantern",
+                                                    f"DM from {safe_user}",
+                                                ],
+                                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                            )
                                 except Exception:
                                     pass
                             
@@ -489,8 +490,8 @@ class ReceiveMixin:
                     self.state.messages[:] = self.state.messages[
                         -self.config.MAX_MESSAGES :
                     ]
-                    # notify on new messages unless dnd is on
-                    if not is_self and not self.state.dnd:
+                    # notify on new messages unless dnd is on and window is focused
+                    if not is_self and not self.state.dnd and not self.state.is_window_focused():
                         try:
                             if platform.system() == "Darwin":
                                 safe_notif = msg[:80].replace('"', '').replace('\\', '')

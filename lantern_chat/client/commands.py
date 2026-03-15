@@ -276,6 +276,12 @@ def cmd_purge(ctx, args):
     ctx.network.send_admin_command("purge", args.strip())
     return True
 
+
+@register("/reload", "Reload server config (admin)")
+def cmd_reload(ctx, _):
+    ctx.network.send_admin_command("reload", "")
+    return True
+
 # useless ahh cmd
 ''' 
 # /snap command but with multiple shots 

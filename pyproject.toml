@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lantern-chat"
-version = "1.4.8"
+version = "1.4.9"
 description = "A TUI chat application for your terminal"
 readme = "README.md"
 license = { text = "MIT" }

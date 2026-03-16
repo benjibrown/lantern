@@ -467,6 +467,9 @@ class HandlerMixin:
         if len(parts) < 3:
             return
         filename, b64 = parts[1], parts[2]
+        if len(b64) > 8 * 1024 * 1024:
+            self.send(addr, "[ADMIN_ERROR]|Image too large (max ~8MB)")
+            return
         try:
             base64.b64decode(b64, validate=True)
         except Exception:
@@ -505,6 +508,9 @@ class HandlerMixin:
 
         if not self.state.user_exists(recipient):
             self.send(addr, "[DM_FAIL]|User not found")
+            return
+        if len(b64) > 8 * 1024 * 1024:
+            self.send(addr, "[ADMIN_ERROR]|Image too large (max ~8MB)")
             return
         try:
             base64.b64decode(b64, validate=True)

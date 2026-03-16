@@ -1,5 +1,7 @@
 import sys
 import threading
+import os 
+import time
 from dataclasses import dataclass
 from lantern_chat.client.state import Message
 
@@ -152,12 +154,15 @@ def cmd_snap(ctx, _):
         dm_target = ctx.state.dm_target if ctx.state.current_view == "dm" else None
 
     def _capture_and_send():
-        cap = _cv2.VideoCapture(0)
-        if not cap.isOpened():
-            notify(ctx, "[system] Could not access webcam")
-            return
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        old_stderr = os.dup(2)
+        os.dup2(devnull, 2)
+        os.close(devnull)
         try:
-            # discard early frames so auto-exposure settles
+            cap = _cv2.VideoCapture(0)
+            if not cap.isOpened():
+                notify(ctx, "[system] Could not access webcam")
+                return
             for _ in range(5):
                 cap.read()
             ret, frame = cap.read()
@@ -173,6 +178,8 @@ def cmd_snap(ctx, _):
             notify(ctx, f"[system] Snap failed: {exc}")
         finally:
             cap.release()
+            os.dup2(old_stderr, 2)
+            os.close(old_stderr)
 
     threading.Thread(target=_capture_and_send, daemon=True).start()
     return True
@@ -283,7 +290,7 @@ def cmd_reload(ctx, _):
     return True
 
 # useless ahh cmd
-''' 
+'''
 # /snap command but with multiple shots 
 @register("/snapburst ", "Send multiple webcam snapshots: /snapburst <count>", prefix=True)
 def cmd_snapburst(ctx, args):
@@ -298,33 +305,54 @@ def cmd_snapburst(ctx, args):
         dm_target = ctx.state.dm_target if ctx.state.current_view == "dm" else None
 
     def _capture_and_send_burst():
-        cap = _cv2.VideoCapture(0)
-        if not cap.isOpened():
-            notify(ctx, "[system] Could not access webcam")
-            return
+        
+        # Suppress cv2 / V4L2 stderr noise (select() timeout etc)
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        old_stderr = os.dup(2)
+        os.dup2(devnull, 2)
+        os.close(devnull)
+        
         try:
+            cap = _cv2.VideoCapture(0)
+            cap.set(_cv2.CAP_PROP_BUFFERSIZE, 1)
+            
+            if not cap.isOpened():
+                notify(ctx, "[system] Could not access webcam")
+                return
+            
+            # Warm up camera once at start (not per-frame)
+            for _ in range(5):
+                cap.read()
+            
+            sent = 0
             for i in range(count):
-                # discard early frames so auto-exposure settles
-                for _ in range(5):
-                    cap.read()
                 ret, frame = cap.read()
                 if not ret or frame is None:
-                    notify(ctx, f"[system] Could not capture frame {i+1} from webcam")
+                    notify(ctx, f"[system] Could not capture frame {i+1}")
                     continue
                 success, encoded = _cv2.imencode('.png', frame)
                 if not success or encoded is None:
-                    notify(ctx, f"[system] Could not encode webcam frame {i+1}")
                     continue
                 ctx.network.send_img_bytes(encoded.tobytes(), f"snapburst_{i+1}.png", dm_target)
+                sent += 1
+                # Small pause between frames — enough for camera to fill buffer again
+                # but not so long that V4L2 times out
+                if i < count - 1:
+                    time.sleep(0.05)
+            
+            if sent < count:
+                notify(ctx, f"[system] Snap burst sent {sent}/{count} frames")
                 
         except Exception as exc:
             notify(ctx, f"[system] Snap burst failed: {exc}")
         finally:
             cap.release()
+            # Restore stderr
+            os.dup2(old_stderr, 2)
+            os.close(old_stderr)
 
     threading.Thread(target=_capture_and_send_burst, daemon=True).start()
     return True
-
 '''
 
 

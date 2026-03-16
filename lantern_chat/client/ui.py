@@ -691,7 +691,7 @@ class UI:
             h, w = stdscr.getmaxyx()
             user_w = 22
             chat_w = max(10, w - user_w - 1)
-            chat_h = h - 3
+            chat_h = h - 4  # Reduced by 1 to account for typing indicator line
 
             with self.state.lock:
                 view = self.state.current_view

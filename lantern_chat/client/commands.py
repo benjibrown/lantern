@@ -284,12 +284,12 @@ def cmd_purge(ctx, args):
     return True
 
 
+
 @register("/reload", "Reload server config (admin)")
 def cmd_reload(ctx, _):
     ctx.network.send_admin_command("reload", "")
     return True
 
-# useless ahh cmd
 '''
 # /snap command but with multiple shots 
 @register("/snapburst ", "Send multiple webcam snapshots: /snapburst <count>", prefix=True)
@@ -305,55 +305,43 @@ def cmd_snapburst(ctx, args):
         dm_target = ctx.state.dm_target if ctx.state.current_view == "dm" else None
 
     def _capture_and_send_burst():
-        
-        # Suppress cv2 / V4L2 stderr noise (select() timeout etc)
+        # suppress opencv warnings - bugs out the tui since opencv likes to print errors :(
         devnull = os.open(os.devnull, os.O_WRONLY)
         old_stderr = os.dup(2)
         os.dup2(devnull, 2)
         os.close(devnull)
-        
+        cap = _cv2.VideoCapture(0)
+        if not cap.isOpened():
+            notify(ctx, "[system] Could not access webcam")
+            os.dup2(old_stderr, 2)
+            os.close(old_stderr)
+            return
         try:
-            cap = _cv2.VideoCapture(0)
-            cap.set(_cv2.CAP_PROP_BUFFERSIZE, 1)
-            
-            if not cap.isOpened():
-                notify(ctx, "[system] Could not access webcam")
-                return
-            
-            # Warm up camera once at start (not per-frame)
-            for _ in range(5):
-                cap.read()
-            
-            sent = 0
             for i in range(count):
+                # discard frames so auto-exposure settles - if you get loads of dark frames, increase this number
+                for _ in range(15):
+                    cap.read()
                 ret, frame = cap.read()
                 if not ret or frame is None:
-                    notify(ctx, f"[system] Could not capture frame {i+1}")
+                    notify(ctx, f"[system] Could not capture frame {i+1} from webcam")
                     continue
                 success, encoded = _cv2.imencode('.png', frame)
                 if not success or encoded is None:
+                    notify(ctx, f"[system] Could not encode webcam frame {i+1}")
                     continue
                 ctx.network.send_img_bytes(encoded.tobytes(), f"snapburst_{i+1}.png", dm_target)
-                sent += 1
-                # Small pause between frames — enough for camera to fill buffer again
-                # but not so long that V4L2 times out
-                if i < count - 1:
-                    time.sleep(0.05)
-            
-            if sent < count:
-                notify(ctx, f"[system] Snap burst sent {sent}/{count} frames")
-                
         except Exception as exc:
             notify(ctx, f"[system] Snap burst failed: {exc}")
         finally:
             cap.release()
-            # Restore stderr
+            # restore stderr in case of errors
             os.dup2(old_stderr, 2)
             os.close(old_stderr)
 
     threading.Thread(target=_capture_and_send_burst, daemon=True).start()
     return True
 '''
+
 
 
 class CommandHandler:

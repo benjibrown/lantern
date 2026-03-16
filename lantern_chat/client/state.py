@@ -41,6 +41,7 @@ class ClientState:
         self.last_received_from_server = 0.0
         self.dnd = True
         self.last_ui_activity = time.time()
+        self.typing_users = {}  # {username: expiry_time} - who's typing and when indicator expires
 
         self.banned = False 
         self.ban_reason = ""
@@ -53,6 +54,10 @@ class ClientState:
 
         # msg_id -> index in self.messages or (conv_key, index) for DMs
         self.disp_index = {}
+        
+        # typing state
+        self.last_typing_sent = 0  # track when we last sent typing notification
+        self.is_typing = False  # whether we've notified server we're typing
 
     def ensure_dm_conversation(self, other_user):
         with self.lock:
@@ -105,3 +110,19 @@ class ClientState:
         with self.lock:
             idle_time = time.time() - self.last_ui_activity
         return idle_time < idle_threshold_seconds
+
+    def mark_user_typing(self, username, duration_seconds=5):
+        with self.lock:
+            self.typing_users[username] = time.time() + duration_seconds
+
+    def clear_user_typing(self, username):
+        with self.lock:
+            self.typing_users.pop(username, None)
+
+    def get_typing_users(self):
+        with self.lock:
+            now = time.time()
+            expired = [u for u, exp in self.typing_users.items() if exp < now]
+            for u in expired:
+                self.typing_users.pop(u, None)
+            return list(self.typing_users.keys())

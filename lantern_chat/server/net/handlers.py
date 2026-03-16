@@ -562,3 +562,30 @@ class HandlerMixin:
 
         threading.Thread(target=_expire, daemon=True).start()
 
+    @register("[TYPING]|")
+    def handleTyping(self, msg, ctx):
+        addr = ctx["addr"]
+        clientInfo = self.state.clients.get(addr)
+        if not clientInfo:
+            return
+        sender = clientInfo.get("username")
+        if not sender:
+            return
+        # broadcast typing notification to all other clients
+        # format: [TYPING]|<username>
+        self.broadcast(f"[TYPING]|{sender}", excludeAddr=addr)
+
+    @register("[TYPING_STOP]|")
+    def handleTypingStop(self, msg, ctx):
+        addr = ctx["addr"]
+        clientInfo = self.state.clients.get(addr)
+        if not clientInfo:
+            return
+        sender = clientInfo.get("username")
+        if not sender:
+            return
+        # broadcast typing stop to all other clients
+        # format: [TYPING_STOP]|<username>
+        self.broadcast(f"[TYPING_STOP]|{sender}", excludeAddr=addr)
+
+

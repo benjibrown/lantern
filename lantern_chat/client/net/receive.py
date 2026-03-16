@@ -473,6 +473,24 @@ class ReceiveMixin:
                                 self.state.disp_index[msg_id] = ("channel",)
                         continue
 
+                    if msg.startswith("[TYPING]|"):
+                        # [TYPING]|<username>
+                        parts = msg.split("|", 1)
+                        if len(parts) == 2:
+                            username = parts[1]
+                            with self.state.lock:
+                                self.state.mark_user_typing(username)
+                        continue
+
+                    if msg.startswith("[TYPING_STOP]|"):
+                        # [TYPING_STOP]|<username>
+                        parts = msg.split("|", 1)
+                        if len(parts) == 2:
+                            username = parts[1]
+                            with self.state.lock:
+                                self.state.clear_user_typing(username)
+                        continue
+
                     if msg.startswith("[DISP_EXPIRE]|"):
                         # [DISP_EXPIRE]|<msg_id>|<redacted>
                         parts = msg.split("|", 2)

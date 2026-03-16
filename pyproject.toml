@@ -30,3 +30,4 @@ lantern-server = "lantern_chat.server_main:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["lantern_chat*"]
+

@@ -201,6 +201,7 @@ class UI:
             total_unread = sum(self.state.unread_dms.values())
 
         unread_str = f" │ DMs: {total_unread} unread" if total_unread else ""
+        
         if view == "dm" and dm_target:
             status = f" {clock} │ DM: {dm_target[:20]} │ ping: {ping_str} │ dnd {'on' if self.state.dnd else 'off'}  │ /back "
         else:
@@ -803,7 +804,8 @@ class UI:
                 attr = curses.color_pair(2) | curses.A_BOLD if unread else 0
                 stdscr.addstr(i, chat_w + 2, label[: user_w - 2], attr)
 
-            INPUT_Y = h - 3
+            INPUT_Y = h - 4
+            TYPING_Y = h - 3
             SEP_Y = h - 2
             STATUS_Y = h - 1
             prompt = "> "
@@ -838,6 +840,27 @@ class UI:
                 stdscr.addstr(INPUT_Y, cursor_x, "|", cursor_attr)
             except curses.error:
                 pass
+            
+            # draw typing indicator (only in main chat, not DM)
+            with self.state.lock:
+                view = self.state.current_view
+                typing_users = self.state.get_typing_users() if view != "dm" else []
+            
+            if typing_users:
+                users_list = ", ".join(typing_users[:2])  # show first 2
+                if len(typing_users) > 2:
+                    users_list += f" +{len(typing_users) - 2}"
+                typing_text = f"⯀ {users_list} typing..." 
+                stdscr.move(TYPING_Y, 0)
+                stdscr.clrtoeol()
+                try:
+                    stdscr.addstr(TYPING_Y, 0, typing_text[: chat_w - 1], curses.A_DIM)
+                except curses.error:
+                    pass
+            else:
+                stdscr.move(TYPING_Y, 0)
+                stdscr.clrtoeol()
+            
             stdscr.hline(SEP_Y, 0, curses.ACS_HLINE, w)
             # draw status bar 
             self.draw_status_bar(stdscr, h, w, y=STATUS_Y)
@@ -1000,6 +1023,12 @@ class UI:
                     if msg and (not self.input_history or self.input_history[-1] != msg):
                         self.input_history.append(msg)
                         self.input_history = self.input_history[-100:]  # cap at 100
+                    
+                    # send typing stop before message (only in main chat, not DM)
+                    with self.state.lock:
+                        if self.state.current_view != "dm":
+                            self.network.send_typing_stop()
+                    
                     if self.command_handler.handle_command(msg, stdscr):
                         continue
 
@@ -1090,6 +1119,12 @@ class UI:
                         + self.input_buf[self.input_cursor :]
                     )
                     self.input_cursor += 1
+                    
+                    # send typing notification on first character (only in main chat, not DM)
+                    if len(self.input_buf) == 1:
+                        with self.state.lock:
+                            if self.state.current_view != "dm":
+                                self.network.send_typing()
 
                     if self.input_buf.startswith("/"):
                         self.autocomplete_matches = self.get_autocomp_matches(self.input_buf)

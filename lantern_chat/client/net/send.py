@@ -134,6 +134,16 @@ class SendMixin:
             return
         self._send(f"[ADMIN_CMD]|{command}|{self.config.USERNAME}|{self.state.session_token}|{payload}")
 
+    def send_typing(self):
+        now = time.time()
+        if now - self.state.last_typing_sent < 2:  # debounce: only send every 2 seconds
+            return
+        self.state.last_typing_sent = now
+        self._send(f"[TYPING]|{self.config.USERNAME}")
+
+    def send_typing_stop(self):
+        self._send(f"[TYPING_STOP]|{self.config.USERNAME}")
+
     def keepalive(self):
         while self.state.running:
             try:

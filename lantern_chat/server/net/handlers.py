@@ -12,10 +12,7 @@ TIMEOUT = 60
 # set of banned characters - only _ and - are allowed as special characters, no spaces allowed
 # this is checked server side and client side so users cannot just modify client code to bypass
 # its better to check if a username only contains allow chars rather than bad chars since there is way more banned chars than this yet only allow any letters, num, _ and -
-BANNED_CHARS = set(" !\"#$%&'()*+,./:;<=>?@[\\]^`{|}~<>")
 ALLOWED_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
-
-# i should add more comments to this code ig
 
 
 class HandlerRegistry:
@@ -66,8 +63,8 @@ class HandlerMixin:
         if self.state.user_exists(username):
             self.sendConn(conn, "[REGISTER_FAIL]|Username taken")
             return
-        if any(c in BANNED_CHARS for c in username):
-            self.sendConn(conn, "[REGISTER_FAIL]|Username contains illegal characters")
+        if any(c not in ALLOWED_CHARS for c in username):
+            self.sendConn(conn, "[REGISTER_FAIL]|Username may only contain letters, numbers, _ and -")
             return
         if username.lower() == "you":
             self.sendConn(conn, "[REGISTER_FAIL]|Username 'you' is not allowed")
@@ -75,10 +72,6 @@ class HandlerMixin:
         if len(username) > 16:
             self.sendConn(conn, "[REGISTER_FAIL]|Username too long (max 16 characters)")
             return
-        # TODO - update
-        #if any(c not in ALLOWED_CHARS for c in username):
-        #    self.sendConn(conn, "[REGISTER_FAIL]|Username contains illegal characters")
-        #    return
         if self.state.register_user(username, password):
             self.sendConn(conn, "[REGISTER_OK]")
             print(f"[green][+][/green] New user registered: {username}")
@@ -352,8 +345,8 @@ class HandlerMixin:
             if len(newName) > 16:
                 self.send(addr, "[ADMIN_ERROR]|New username too long (max 16 characters)")
                 return
-            if any(c in BANNED_CHARS for c in newName):
-                self.send(addr, "[ADMIN_ERROR]|New username contains illegal characters")
+            if any(c not in ALLOWED_CHARS for c in newName):
+                self.send(addr, "[ADMIN_ERROR]|New username may only contain letters, numbers, _ and -")
                 return
             if not self.state.user_exists(oldName):
                 self.send(addr, f"[ADMIN_ERROR]|User '{oldName}' not found")
@@ -361,11 +354,11 @@ class HandlerMixin:
             if self.state.user_exists(newName):
                 self.send(addr, f"[ADMIN_ERROR]|Username '{newName}' is already taken")
                 return
-            if not self.state.rename_user(oldName, newName):
-                self.send(addr, "[ADMIN_ERROR]|Failed to rename user (validation or storage error)")
-                return
             if newName.lower() == "you":
                 self.send(addr, "[ADMIN_ERROR]|Username 'you' is not allowed")
+                return
+            if not self.state.rename_user(oldName, newName):
+                self.send(addr, "[ADMIN_ERROR]|Failed to rename user (validation or storage error)")
                 return
 
             info = f"[system] {actor} renamed user {oldName} to {newName}"
@@ -467,6 +460,7 @@ class HandlerMixin:
         if len(parts) < 3:
             return
         filename, b64 = parts[1], parts[2]
+        filename = "".join(c for c in filename if 32 <= ord(c) < 127 and c not in '|\\/')[:64] or "image.png"
         if len(b64) > 8 * 1024 * 1024:
             self.send(addr, "[ADMIN_ERROR]|Image too large (max ~8MB)")
             return
@@ -505,6 +499,7 @@ class HandlerMixin:
         if len(parts) < 4:
             return
         recipient, filename, b64 = parts[1], parts[2], parts[3]
+        filename = "".join(c for c in filename if 32 <= ord(c) < 127 and c not in '|\\/')[:64] or "image.png"
 
         if not self.state.user_exists(recipient):
             self.send(addr, "[DM_FAIL]|User not found")

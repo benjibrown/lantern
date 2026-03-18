@@ -251,48 +251,23 @@ class UI:
             ]
             art = random.choice([art1, art2, art3, art4, art5])
             art_lines = len(art)
+            cmds = command_registry.all_commands()
+            cmd_lines = [f"  {trigger.rstrip()}    {desc}" for trigger, desc in cmds]
             body = [
                 "Commands:",
-                "  /exit      Quit chat",
-                "  /logout    Log out (next run: login again)",
-                "  /back      Back to main channel",
-                "  /dm <user> Open DM with user",
-                "  /panel     List users, pick one to DM",
-                "  /fetch     Send system info (30s cooldown)",
-                "  /dnd       Do not disturb (toggle notifications)",
-                "  /clear     Clear messages from main chat for session",
-                "  /img       Send an image (file picker)",
-                "  /disp <s> <msg>  Send a disappearing message",
-                "",
-                "Keybinds:",
-                "  Ctrl+H     Help menu",
-                "  Ctrl+K     Show keybinds",
-                "  Ctrl+F     Fetch system info",
-                "  Ctrl+B     Switch to channel view",
-                "  Ctrl+P     Open user panel",
-                "  Ctrl+D     Toggle DND",
-                "  Ctrl+L     Logout",
-                "  Ctrl+W     Exit (with confirm)",
-                "  Esc Esc    Exit (immediate)",
+                *cmd_lines,
                 "",
                 "Press any key to close",
             ]
             lines = art + body
         else:
             art_lines = 0
+            cmds = command_registry.all_commands()
+            cmd_lines = [f"  {trigger.rstrip()}    {desc}" for trigger, desc in cmds]
             lines = [
                 "Lantern Help",
                 "",
-                "/exit    Quit chat",
-                "/logout  Log out (next run: login again)",
-                "/help    Show this menu",
-                "/back    Back to main channel",
-                "/dm <user>  Open DM with user",
-                "/panel   List users, pick one to DM",
-                "/fetch   Send system info (30s cooldown)",
-                "/dnd     Do not disturb (toggle notifications)",
-                "/img     Send an image (file picker)",
-                "/disp <s> <msg>  Send a disappearing message",
+                *cmd_lines,
                 "",
                 "Press any key to close",
             ]
@@ -316,9 +291,6 @@ class UI:
                 attr = title_attr
             elif art_lines and i == art_lines + 2:
                 # "Commands:" header
-                attr = accent_attr
-            elif art_lines and i == art_lines + 2 + 10:
-                # "Keybinds:" header (after ~10 body lines)
                 attr = accent_attr
             elif line.startswith("  /") or line.startswith("  Ctrl"):
                 # Highlight the command/key token in pastel purple

@@ -92,6 +92,12 @@ def cmd_help(ctx, _):
     return True
 
 
+@register("/keybinds", "Show keybind reference")
+def cmd_keybinds(ctx, _):
+    ctx.ui.show_keybinds(ctx.stdscr)
+    return True
+
+
 @register("/clear", "Clear messages from main chat for this session")
 def cmd_clear(ctx, _):
     with ctx.state.lock:
@@ -225,6 +231,7 @@ def cmd_disp(ctx, args):
     return True
 
 
+
 # admin cmds
 
 @register("/mute ", "Mute a user (admin)", prefix=True)
@@ -341,6 +348,7 @@ def cmd_snapburst(ctx, args):
     threading.Thread(target=_capture_and_send_burst, daemon=True).start()
     return True
 '''
+
 
 
 

@@ -12,9 +12,6 @@ os.makedirs(_CONFIG_DIR, exist_ok=True)
 HISTORY_FILE = os.path.join(_DATA_DIR, "messages.json")
 USERS_FILE = os.path.join(_DATA_DIR, "users.json")
 CONFIG_FILE = os.path.join(_CONFIG_DIR, "server.json")
-_CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "lantern")
-os.makedirs(_CONFIG_DIR, exist_ok=True)
-CONFIG_FILE = os.path.join(_CONFIG_DIR, "server.json")
 
 
 def _hash_password(password: str, salt: str) -> str:

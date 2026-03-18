@@ -3,11 +3,10 @@ import socket
 import time
 import json
 import hashlib
-import secrets
 from lantern_chat.frame import send_msg, recv_msg
 
-# set of banned characters - only _ and - are allowed as special characters, no spaces allowed 
-BANNED_CHARS = set(" !\"#$%&'()*+,./:;<=>?@[\\]^`{|}~<>")
+# usernames must only contain letters, numbers, _ and -
+ALLOWED_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
 
 def _send_recv(host: str, port: int, msg: str, timeout=5.0):
     # single tcp req/resp for login/reg
@@ -157,27 +156,28 @@ def run_auth_ui(stdscr, config):
                 if not password:
                     error = "Password required"
                     continue
-                if any(c in BANNED_CHARS for c in username):
-                    error = "Your username contains illegal characters"
+                if any(c not in ALLOWED_CHARS for c in username):
+                    error = "Username may only contain letters, numbers, _ and -"
                     continue
                 if len(username) > 16:
                     error = "Username too long (max 16 characters)"
                     continue
                 try:
+                    pw_hash = hashlib.sha256(password.encode()).hexdigest()
                     if is_register:
-                        out = _send_recv(config.SERVER_HOST, config.SERVER_PORT, f"[REGISTER]|{username}|{password}")
+                        out = _send_recv(config.SERVER_HOST, config.SERVER_PORT, f"[REGISTER]|{username}|{pw_hash}")
                         if out.startswith("[REGISTER_OK]"):
-                            config.save_session(username, password)
-                            return (username, password)
+                            config.save_session(username, pw_hash)
+                            return (username, pw_hash)
                         if out.startswith("[REGISTER_FAIL]|"):
                             error = out.split("|", 1)[1][:60]
                         else:
                             error = "Registration failed (server unreachable?)"
                     else:
-                        out = _send_recv(config.SERVER_HOST, config.SERVER_PORT, f"[LOGIN]|{username}|{password}")
+                        out = _send_recv(config.SERVER_HOST, config.SERVER_PORT, f"[LOGIN]|{username}|{pw_hash}")
                         if out.startswith("[AUTH_OK]"):
-                            config.save_session(username, password)
-                            return (username, password)
+                            config.save_session(username, pw_hash)
+                            return (username, pw_hash)
                         if out.startswith("[AUTH_FAIL]|"):
                             error = out.split("|", 1)[1][:60]
                         else:

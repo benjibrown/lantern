@@ -11,14 +11,35 @@ A terminal chat application — server and client in one package.
 </div>
 
 > **Note:** Lantern runs over plain TCP with no transport encryption. Don't use it for anything sensitive. It's built for fun, local networks, or VPS setups where you control the environment.
->
 
+---
 
-### Compatibility
+## Quick Start (local testing)
+
+```
+pip install lantern-chat
+```
+
+**Terminal 1 — start the server:**
+```
+lantern-server
+```
+
+**Terminal 2 — start the client:**
+```
+lantern
+```
+
+When prompted for a server address, enter `localhost` (or press Enter). Register an account and you're in. To connect from another machine, use the server's IP address instead of `localhost`.
+
+---
+
+## Compatibility
+
 - Linux (fully supported and tested)
-- MacOS (supported, not tested as extensively)
-- Windows (known to work but not tested) 
-> If you would like to test this project on Windows I would greatly appreciate any feedback. Create an issue and I'll do my best to work on compatibility.
+- macOS (supported, not tested as extensively)
+- Windows (known to work but not tested)
+> If you would like to test this on Windows I would really appreciate it, create an issue and I'll do my best to work on compatibility.
 
 ---
 
@@ -29,7 +50,8 @@ pip install lantern-chat
 ```
 
 Requires Python 3.8+. Dependencies: `rich`, `Pillow`, `opencv-python`.
-> If you face an error when installing lantern regarding the creation of a venv then install the package with `pipx` - available on most package managers as `python-pipx` 
+> If you get an error about venv creation, install with `pipx` instead, available on most package managers as `python-pipx`.
+
 ---
 
 ## Running
@@ -52,6 +74,7 @@ lantern -u benji              # override saved username
 ```
 
 On first run, the client will ask for a server address and save it. After logging in, your session is saved so you don't need to re-enter credentials.
+Reminder that there must be a server running at the server address specified either in the config file or via command line args for the client to connect successfully. See the Hosting section below for details on ways to do this.
 
 ---
 
@@ -90,7 +113,7 @@ Server config lives at `~/.config/lantern/server.json`. Create it or edit it to 
   "fetch_cooldown": 30,
   "msg_rate_limit": 1.0,
 
-  "max_msg_len": 40,
+  "max_msg_len": 400,
   "max_channel_messages": 2000,
   "max_dm_messages": 5000,
 
@@ -100,7 +123,7 @@ Server config lives at `~/.config/lantern/server.json`. Create it or edit it to 
 }
 ```
 
-Admins are defined by username however they also must have their respective user token which is allocated for each session by the server and sent alongside admin commands.
+Admins are matched by username. Admin commands are authenticated automatically using a per-session token issued by the server — no extra setup needed beyond adding the username to the `admins` list.
 
 ---
 

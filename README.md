@@ -29,7 +29,7 @@ pip install lantern-chat
 ```
 
 Requires Python 3.8+. Dependencies: `rich`, `Pillow`, `opencv-python`.
-
+> If you face an error when installing lantern regarding the creation of a venv then install the package with `pipx` - available on most package managers as `python-pipx` 
 ---
 
 ## Running
